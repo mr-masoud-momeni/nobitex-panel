@@ -78,6 +78,15 @@
                                     <td style="white-space: nowrap;">
                                         <a href="{{ route('trade.show', $trade) }}" class="btn btn-xs btn-default">مشاهده</a>
 
+                                        @if($trade->status === 'draft')
+                                            <a href="{{ route('trade.edit', $trade) }}" class="btn btn-xs btn-warning">ویرایش</a>
+                                        @endif
+
+                                        <form action="{{ route('trade.duplicate', $trade) }}" method="post" style="display:inline;">
+                                            @csrf
+                                            <button type="submit" class="btn btn-xs btn-info">داپلیکیت</button>
+                                        </form>
+
                                         @if($trade->status !== 'running')
                                             <form action="{{ route('trade.destroy', $trade) }}" method="post" style="display:inline;" onsubmit="return confirm('آیا از حذف این معامله مطمئن هستید؟');">
                                                 @csrf
