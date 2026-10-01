@@ -110,10 +110,6 @@ class TradeController extends Controller
 
     public function duplicate(Trade $trade)
     {
-        if ($trade->status === 'running') {
-            return back()->with('error', 'برای معامله در حال اجرا ابتدا آن را متوقف کنید.');
-        }
-
         $copy = DB::transaction(function () use ($trade) {
             $copy = $trade->replicate([
                 'status',
