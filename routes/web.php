@@ -20,22 +20,29 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->group(function () {
         return view('Backend.layouts.Master');
     })->name('admin.dashboard');
 
-    Route::resource('/register', 'App\Http\Controllers\admin\UserController');
-    Route::post('/register/{uuid}/regenerate-password', 'App\Http\Controllers\admin\UserController@regeneratePassword')
+    Route::resource('/register', 'App\\Http\\Controllers\\admin\\UserController');
+    Route::post('/register/{uuid}/regenerate-password', 'App\\Http\\Controllers\\admin\\UserController@regeneratePassword')
         ->name('register.password.regenerate');
 
-    Route::resource('/Permission', 'App\Http\Controllers\admin\PermissionController');
-    Route::resource('/notification', 'App\Http\Controllers\admin\NotificationController');
-    Route::resource('/role', 'App\Http\Controllers\admin\RoleController');
-    Route::resource('/email', 'App\Http\Controllers\admin\SendEmail');
-    Route::resource('/email-group', 'App\Http\Controllers\admin\EmailGroupController');
-    Route::resource('/menu', 'App\Http\Controllers\admin\MenuController');
+    Route::resource('/Permission', 'App\\Http\\Controllers\\admin\\PermissionController');
+    Route::resource('/notification', 'App\\Http\\Controllers\\admin\\NotificationController');
+    Route::resource('/role', 'App\\Http\\Controllers\\admin\\RoleController');
+    Route::resource('/email', 'App\\Http\\Controllers\\admin\\SendEmail');
+    Route::resource('/email-group', 'App\\Http\\Controllers\\admin\\EmailGroupController');
+    Route::resource('/menu', 'App\\Http\\Controllers\\admin\\MenuController');
 
-    Route::get('/strategy', 'App\Http\Controllers\admin\StrategyController@index')->name('strategy.index');
-    Route::get('/strategy/create', 'App\Http\Controllers\admin\StrategyController@create')->name('strategy.create');
-    Route::post('/strategy', 'App\Http\Controllers\admin\StrategyController@store')->name('strategy.store');
+    Route::get('/strategy', 'App\\Http\\Controllers\\admin\\StrategyController@index')->name('strategy.index');
+    Route::get('/strategy/create', 'App\\Http\\Controllers\\admin\\StrategyController@create')->name('strategy.create');
+    Route::post('/strategy', 'App\\Http\\Controllers\\admin\\StrategyController@store')->name('strategy.store');
 
-    Route::post('/upload-image', 'App\Http\Controllers\admin\panelAdmin@UploadImageInText')->name('uploadImage');
+    Route::get('/trade', 'App\\Http\\Controllers\\admin\\TradeController@index')->name('trade.index');
+    Route::get('/trade/create', 'App\\Http\\Controllers\\admin\\TradeController@create')->name('trade.create');
+    Route::post('/trade', 'App\\Http\\Controllers\\admin\\TradeController@store')->name('trade.store');
+    Route::get('/trade/{trade}', 'App\\Http\\Controllers\\admin\\TradeController@show')->name('trade.show');
+    Route::post('/trade/{trade}/start', 'App\\Http\\Controllers\\admin\\TradeController@start')->name('trade.start');
+    Route::post('/trade/{trade}/stop', 'App\\Http\\Controllers\\admin\\TradeController@stop')->name('trade.stop');
+
+    Route::post('/upload-image', 'App\\Http\\Controllers\\admin\\panelAdmin@UploadImageInText')->name('uploadImage');
 });
 
 Route::middleware('auth')->get('/dashboard', function () {
