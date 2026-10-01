@@ -7,9 +7,12 @@ use App\Models\Market;
 use App\Models\MarketSymbol;
 use App\Models\Strategy;
 use App\Models\Trade;
+use App\Services\Trading\Markets\NobitexMarket;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Throwable;
 
 class TradeController extends Controller
 {
@@ -190,7 +193,7 @@ class TradeController extends Controller
         return view('Backend.trades.show', compact('trade'));
     }
 
-    public function start(Trade $trade)
+    public function start(Trade $trade, NobitexMarket $nobitexMarket)
     {
         if ($trade->status === 'running') {
             return back();
@@ -198,6 +201,50 @@ class TradeController extends Controller
 
         if (in_array($trade->status, ['completed', 'stopped'])) {
             return back()->with('error', 'این معامله قبلاً اجرا شده است. برای اجرای جدید، معامله جدید ایجاد کنید.');
+        }
+
+        if ($trade->type === 'backtest') {
+            if (!$trade->start_date || !$trade->end_date) {
+                return back()->with('error', 'برای بک‌تست باید تاریخ شروع و پایان مشخص شده باشد.');
+            }
+
+            $trade->update([
+                'status' => 'running',
+                'started_at' => $trade->started_at ?: now(),
+                'stopped_at' => null,
+            ]);
+
+            try {
+                $marketSymbol = MarketSymbol::where('id', $trade->market_symbol_id)
+                    ->where('market_id', $trade->market_id)
+                    ->firstOrFail();
+
+                if (($trade->market->driver ?? null) !== 'nobitex') {
+                    throw new \RuntimeException('در حال حاضر فقط منبع Nobitex برای دریافت داده تاریخی پیاده‌سازی شده است.');
+                }
+
+                $count = $nobitexMarket->syncCandles(
+                    $marketSymbol,
+                    $trade->timeframe,
+                    Carbon::parse($trade->start_date),
+                    Carbon::parse($trade->end_date)
+                );
+
+                $trade->update([
+                    'status' => 'completed',
+                    'completed_at' => now(),
+                    'stopped_at' => null,
+                ]);
+
+                return back()->with('success', "دریافت داده انجام شد. {$count} کندل در جدول market_candles ثبت/به‌روزرسانی شد.");
+            } catch (Throwable $e) {
+                $trade->update([
+                    'status' => 'draft',
+                    'started_at' => null,
+                ]);
+
+                return back()->with('error', 'دریافت داده‌های تاریخی ناموفق بود: '.$e->getMessage());
+            }
         }
 
         $trade->update([
