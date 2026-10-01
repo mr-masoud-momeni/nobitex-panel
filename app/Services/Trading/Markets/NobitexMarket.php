@@ -3,13 +3,26 @@
 namespace App\Services\Trading\Markets;
 
 use App\Models\Market;
+use App\Models\MarketCandle;
 use App\Models\MarketSymbol;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
 class NobitexMarket
 {
     private const STATS_URL = 'https://apiv2.nobitex.ir/market/stats';
+    private const HISTORY_URL = 'https://apiv2.nobitex.ir/market/udf/history';
+
+    private const RESOLUTIONS = [
+        '1m' => '1',
+        '5m' => '5',
+        '15m' => '15',
+        '30m' => '30',
+        '1h' => '60',
+        '4h' => '240',
+        '1d' => 'D',
+    ];
 
     public function syncSymbols(): int
     {
@@ -73,5 +86,116 @@ class NobitexMarket
         }
 
         return count($seen);
+    }
+
+    public function syncCandles(MarketSymbol $marketSymbol, string $timeframe, Carbon $start, Carbon $end): int
+    {
+        if (!isset(self::RESOLUTIONS[$timeframe])) {
+            throw new RuntimeException("Unsupported Nobitex timeframe: {$timeframe}.");
+        }
+
+        if ($start->greaterThan($end)) {
+            throw new RuntimeException('Historical data start date must be before end date.');
+        }
+
+        $resolution = self::RESOLUTIONS[$timeframe];
+        $from = $start->timestamp;
+        $to = $end->timestamp;
+        $stored = 0;
+
+        while ($to >= $from) {
+            $response = Http::timeout(30)
+                ->acceptJson()
+                ->get(self::HISTORY_URL, [
+                    'symbol' => strtoupper($marketSymbol->symbol),
+                    'resolution' => $resolution,
+                    'from' => $from,
+                    'to' => $to,
+                    'countback' => 500,
+                ]);
+
+            if (!$response->successful()) {
+                throw new RuntimeException(
+                    'Nobitex historical data request failed with HTTP '.$response->status().'.'
+                );
+            }
+
+            $payload = $response->json();
+
+            if (($payload['s'] ?? null) === 'no_data') {
+                break;
+            }
+
+            if (($payload['s'] ?? null) !== 'ok') {
+                throw new RuntimeException(
+                    'Nobitex historical data request failed: '.($payload['errmsg'] ?? 'unknown error').'.'
+                );
+            }
+
+            $timestamps = $payload['t'] ?? [];
+            $opens = $payload['o'] ?? [];
+            $highs = $payload['h'] ?? [];
+            $lows = $payload['l'] ?? [];
+            $closes = $payload['c'] ?? [];
+            $volumes = $payload['v'] ?? [];
+
+            $count = min(
+                count($timestamps),
+                count($opens),
+                count($highs),
+                count($lows),
+                count($closes),
+                count($volumes)
+            );
+
+            if ($count === 0) {
+                break;
+            }
+
+            $rows = [];
+
+            for ($i = 0; $i < $count; $i++) {
+                $timestamp = (int) $timestamps[$i];
+
+                if ($timestamp < $from || $timestamp > $to) {
+                    continue;
+                }
+
+                $rows[] = [
+                    'market_symbol_id' => $marketSymbol->id,
+                    'timeframe' => $timeframe,
+                    'timestamp' => $timestamp,
+                    'open' => $opens[$i],
+                    'high' => $highs[$i],
+                    'low' => $lows[$i],
+                    'close' => $closes[$i],
+                    'volume' => $volumes[$i] ?? null,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
+
+            if (!$rows) {
+                break;
+            }
+
+            MarketCandle::upsert(
+                $rows,
+                ['market_symbol_id', 'timeframe', 'timestamp'],
+                ['open', 'high', 'low', 'close', 'volume', 'updated_at']
+            );
+
+            $stored += count($rows);
+
+            $oldest = min(array_map(fn ($row) => $row['timestamp'], $rows));
+
+            if ($oldest <= $from || $count < 500) {
+                break;
+            }
+
+            $to = $oldest - 1;
+        }
+
+        return $stored;
     }
 }
