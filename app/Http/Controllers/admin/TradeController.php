@@ -1,14 +1,15 @@
 <?php
 
-namespace App\Http\Controllers\admin;
+namespace App\\Http\\Controllers\\admin;
 
-use App\Http\Controllers\Controller;
-use App\Models\Market;
-use App\Models\MarketSymbol;
-use App\Models\Strategy;
-use App\Models\Trade;
-use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
+use App\\Http\\Controllers\\Controller;
+use App\\Models\\Market;
+use App\\Models\\MarketSymbol;
+use App\\Models\\Strategy;
+use App\\Models\\Trade;
+use Illuminate\\Http\\Request;
+use Illuminate\\Support\\Facades\\DB;
+use Illuminate\\Validation\\Rule;
 
 class TradeController extends Controller
 {
@@ -21,38 +22,55 @@ class TradeController extends Controller
 
     public function create()
     {
-        $strategies = Strategy::where('is_active', true)->orderBy('name')->get();
+        return $this->formView(null);
+    }
 
-        $markets = Market::where('is_active', true)
-            ->with(['symbols' => function ($query) {
-                $query->where('is_active', true)->orderBy('display_name');
+    public function edit(Trade $trade)
+    {
+        if ($trade->status !== 'draft') {
+            return redirect()
+                ->route('trade.show', $trade)
+                ->with('error', 'فقط معامله‌ای که هنوز اجرا نشده قابل ویرایش است.');
+        }
+
+        return $this->formView($trade);
+    }
+
+    private function formView($trade)
+    {
+        $strategies = Strategy::where(function ($query) use ($trade) {
+            $query->where('is_active', true);
+
+            if ($trade) {
+                $query->orWhere('id', $trade->strategy_id);
+            }
+        })->orderBy('name')->get();
+
+        $markets = Market::where(function ($query) use ($trade) {
+            $query->where('is_active', true);
+
+            if ($trade) {
+                $query->orWhere('id', $trade->market_id);
+            }
+        })
+            ->with(['symbols' => function ($query) use ($trade) {
+                $query->where(function ($q) use ($trade) {
+                    $q->where('is_active', true);
+
+                    if ($trade) {
+                        $q->orWhere('id', $trade->market_symbol_id);
+                    }
+                })->orderBy('display_name');
             }])
             ->orderBy('name')
             ->get();
 
-        return view('Backend.trades.create', compact('strategies', 'markets'));
+        return view('Backend.trades.create', compact('strategies', 'markets', 'trade'));
     }
 
     public function store(Request $request)
     {
-        $data = $request->validate([
-            'strategy_id' => ['required', 'exists:strategies,id'],
-            'market_id' => ['required', 'exists:markets,id'],
-            'market_symbol_id' => [
-                'required',
-                Rule::exists('market_symbols', 'id')->where(function ($query) use ($request) {
-                    return $query
-                        ->where('market_id', $request->input('market_id'))
-                        ->where('is_active', true);
-                }),
-            ],
-            'type' => ['required', 'in:backtest,paper,live'],
-            'timeframe' => ['required', 'string', 'max:20'],
-            'initial_capital' => ['required', 'numeric', 'gt:0'],
-            'fee_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'start_date' => ['nullable', 'date'],
-            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
-        ]);
+        $data = $this->validatedData($request);
 
         $symbol = MarketSymbol::where('id', $data['market_symbol_id'])
             ->where('market_id', $data['market_id'])
@@ -67,6 +85,93 @@ class TradeController extends Controller
         return redirect()
             ->route('trade.index')
             ->with('success', 'معامله با موفقیت ایجاد شد و آماده اجراست.');
+    }
+
+    public function update(Request $request, Trade $trade)
+    {
+        if ($trade->status !== 'draft') {
+            return back()->with('error', 'معامله پس از اجرا قابل ویرایش نیست.');
+        }
+
+        $data = $this->validatedData($request, $trade);
+
+        $symbol = MarketSymbol::where('id', $data['market_symbol_id'])
+            ->where('market_id', $data['market_id'])
+            ->value('symbol');
+
+        $trade->update(array_merge($data, [
+            'symbol' => $symbol,
+        ]));
+
+        return redirect()
+            ->route('trade.index')
+            ->with('success', 'معامله با موفقیت ویرایش شد.');
+    }
+
+    public function duplicate(Trade $trade)
+    {
+        if ($trade->status === 'running') {
+            return back()->with('error', 'برای معامله در حال اجرا ابتدا آن را متوقف کنید.');
+        }
+
+        $copy = DB::transaction(function () use ($trade) {
+            $copy = $trade->replicate([
+                'status',
+                'result_amount',
+                'result_percent',
+                'total_trades',
+                'winning_trades',
+                'losing_trades',
+                'started_at',
+                'stopped_at',
+                'completed_at',
+            ]);
+
+            $copy->status = 'draft';
+            $copy->result_amount = null;
+            $copy->result_percent = null;
+            $copy->total_trades = null;
+            $copy->winning_trades = null;
+            $copy->losing_trades = null;
+            $copy->started_at = null;
+            $copy->stopped_at = null;
+            $copy->completed_at = null;
+            $copy->save();
+
+            return $copy;
+        });
+
+        return redirect()
+            ->route('trade.edit', $copy)
+            ->with('success', 'یک نسخه جدید از معامله ساخته شد. حالا می‌توانید تنظیمات آن را تغییر دهید.');
+    }
+
+    private function validatedData(Request $request, ?Trade $trade = null)
+    {
+        return $request->validate([
+            'strategy_id' => ['required', 'exists:strategies,id'],
+            'market_id' => ['required', 'exists:markets,id'],
+            'market_symbol_id' => [
+                'required',
+                Rule::exists('market_symbols', 'id')->where(function ($query) use ($request) {
+                    return $query
+                        ->where('market_id', $request->input('market_id'))
+                        ->where(function ($q) use ($trade) {
+                            $q->where('is_active', true);
+
+                            if ($trade) {
+                                $q->orWhere('id', $trade->market_symbol_id);
+                            }
+                        });
+                }),
+            ],
+            'type' => ['required', 'in:backtest,paper,live'],
+            'timeframe' => ['required', 'string', 'max:20'],
+            'initial_capital' => ['required', 'numeric', 'gt:0'],
+            'fee_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'start_date' => ['nullable', 'date'],
+            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+        ]);
     }
 
     public function destroy(Trade $trade)
