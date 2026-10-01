@@ -227,6 +227,18 @@ class TradeController extends Controller
                 $strategy = $trade->strategy()->with('rules')->firstOrFail();
                 $warmupCandles = $indicatorWarmup->candlesFor($strategy);
 
+                dd([
+                    'trade_id' => $trade->id,
+                    'start_date_raw' => $trade->getRawOriginal('start_date'),
+                    'end_date_raw' => $trade->getRawOriginal('end_date'),
+                    'start_date' => $trade->start_date?->format('Y-m-d H:i:s'),
+                    'end_date' => $trade->end_date?->format('Y-m-d H:i:s'),
+                    'start_carbon' => Carbon::parse($trade->start_date)->format('Y-m-d H:i:s P'),
+                    'end_carbon' => Carbon::parse($trade->end_date)->format('Y-m-d H:i:s P'),
+                    'timezone' => config('app.timezone'),
+                    'warmup_candles' => $warmupCandles,
+                ]);
+
                 $count = $nobitexMarket->syncCandles(
                     $marketSymbol,
                     $trade->timeframe,
