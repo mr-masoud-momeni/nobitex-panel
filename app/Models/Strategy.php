@@ -9,8 +9,6 @@ class Strategy extends Model
     protected $fillable = [
         'name',
         'description',
-        'entry_conditions',
-        'exit_conditions',
         'risk_percent',
         'stop_loss',
         'take_profit',
@@ -20,4 +18,9 @@ class Strategy extends Model
     protected $casts = [
         'is_active' => 'boolean',
     ];
+
+    public function rules()
+    {
+        return $this->hasMany(StrategyRule::class)->orderBy('type')->orderBy('sort_order');
+    }
 }
