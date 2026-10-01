@@ -108,7 +108,8 @@ class NobitexMarket
         $to = $end->timestamp;
         $cursor = $to;
         $stored = 0;
-                while ($cursor >= $from) {
+
+        while ($cursor >= $from) {
             $response = Http::timeout(30)
                 ->acceptJson()
                 ->get(self::HISTORY_URL, [
@@ -124,10 +125,7 @@ class NobitexMarket
                 );
             }
 
-            $payload = $response->json();
-
-
-            if (($payload['s'] ?? null) !== 'ok') {
+            $payload = $response->json();\n\n            if (($payload['s'] ?? null) !== 'ok') {
                 throw new RuntimeException(
                     'Nobitex historical data request failed: '.($payload['errmsg'] ?? 'unknown error').'.'
                 );
@@ -151,7 +149,6 @@ class NobitexMarket
 
 
             $oldestTimestamp = null;
-            $newestTimestamp = null;
             $rows = [];
 
             for ($i = 0; $i < $count; $i++) {
@@ -159,10 +156,6 @@ class NobitexMarket
 
                 if ($oldestTimestamp === null || $timestamp < $oldestTimestamp) {
                     $oldestTimestamp = $timestamp;
-                }
-
-                if ($newestTimestamp === null || $timestamp > $newestTimestamp) {
-                    $newestTimestamp = $timestamp;
                 }
 
                 if ($timestamp < $from || $timestamp > $to) {
@@ -182,7 +175,6 @@ class NobitexMarket
                     'updated_at' => now(),
                 ];
             }
-
 
             if ($rows) {
                 MarketCandle::upsert(
@@ -206,7 +198,6 @@ class NobitexMarket
 
             $cursor = $nextCursor;
         }
-
 
         return $stored;
     }
