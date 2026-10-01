@@ -210,6 +210,7 @@ class NobitexMarket
         }
 
         return $stored;
+    }
 
     private function warmupStart(Carbon $start, string $timeframe, int $warmupCandles): Carbon
     {
