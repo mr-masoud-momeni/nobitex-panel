@@ -1,26 +1,19 @@
 ---
 deployment:
   tasks:
-    # Laravel application
-    - export LARAVELPATH=/home/fmtsnwvt/laravel/
+    # Nobitex Laravel application (outside public_html)
+    - export LARAVELPATH=/home/fmtsnwvt/nobitex-panel/
     - /bin/cp -R app $LARAVELPATH
     - /bin/cp -R bootstrap $LARAVELPATH
     - /bin/cp -R config $LARAVELPATH
     - /bin/cp -R database $LARAVELPATH
     - /bin/cp -R resources $LARAVELPATH
     - /bin/cp -R routes $LARAVELPATH
+    - /bin/cp -R storage $LARAVELPATH
     - /bin/cp artisan $LARAVELPATH
     - /bin/cp composer.json $LARAVELPATH
     - /bin/cp composer.lock $LARAVELPATH
 
-    # Public assets -> Document Root
-    - export PUBLICPATH=/home/fmtsnwvt/public_html/
-    - /bin/cp -R public/backend $PUBLICPATH
-    - /bin/cp -R public/ckeditor $PUBLICPATH
-    - /bin/cp -R public/css $PUBLICPATH
-    - /bin/cp -R public/fonts $PUBLICPATH
-    - /bin/cp -R public/frontend $PUBLICPATH
-    - /bin/cp -R public/js $PUBLICPATH
-    - /bin/cp -R public/vendor $PUBLICPATH
-    - /bin/cp public/favicon.ico $PUBLICPATH
-    - /bin/cp public/robots.txt $PUBLICPATH
+    # Laravel public directory -> subdomain document root
+    - export PUBLICPATH=/home/fmtsnwvt/nobitex-panel/public/
+    - /bin/cp -R public/. $PUBLICPATH
