@@ -30,7 +30,30 @@ class NobitexMarket
 
         if (!$response->successful()) {
             throw new RuntimeException('Nobitex market stats request failed with HTTP '.$response->status().'.');
+            private function warmupStart(Carbon $start, string $timeframe, int $warmupCandles): Carbon
+    {
+        if ($warmupCandles <= 0) {
+            return $start->copy();
         }
+
+        $minutes = [
+            '1m' => 1,
+            '5m' => 5,
+            '15m' => 15,
+            '30m' => 30,
+            '1h' => 60,
+            '4h' => 240,
+            '1d' => 1440,
+        ][$timeframe] ?? null;
+
+        if ($minutes === null) {
+            throw new RuntimeException("Unsupported Nobitex timeframe: {$timeframe}.");
+        }
+
+        return $start->copy()->subMinutes($minutes * $warmupCandles);
+    }
+
+}
 
         $payload = $response->json();
 
@@ -88,7 +111,7 @@ class NobitexMarket
         return count($seen);
     }
 
-    public function syncCandles(MarketSymbol $marketSymbol, string $timeframe, Carbon $start, Carbon $end): int
+    public function syncCandles(MarketSymbol $marketSymbol, string $timeframe, Carbon $start, Carbon $end, int $warmupCandles = 0): int
     {
         if (!isset(self::RESOLUTIONS[$timeframe])) {
             throw new RuntimeException("Unsupported Nobitex timeframe: {$timeframe}.");
@@ -99,7 +122,7 @@ class NobitexMarket
         }
 
         $resolution = self::RESOLUTIONS[$timeframe];
-        $from = $start->timestamp;
+        $from = $this->warmupStart($start, $timeframe, $warmupCandles)->timestamp;
         $to = $end->timestamp;
         $stored = 0;
 
