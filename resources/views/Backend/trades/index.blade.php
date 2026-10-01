@@ -78,6 +78,14 @@
                                     <td style="white-space: nowrap;">
                                         <a href="{{ route('trade.show', $trade) }}" class="btn btn-xs btn-default">مشاهده</a>
 
+                                        @if($trade->status !== 'running')
+                                            <form action="{{ route('trade.destroy', $trade) }}" method="post" style="display:inline;" onsubmit="return confirm('آیا از حذف این معامله مطمئن هستید؟');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn btn-xs btn-danger">حذف</button>
+                                            </form>
+                                        @endif
+
                                         @if($trade->status === 'draft')
                                             <form action="{{ route('trade.start', $trade) }}" method="post" style="display:inline;">
                                                 @csrf
