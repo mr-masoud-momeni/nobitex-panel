@@ -27,13 +27,4 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
-    'bale' => [
-        'bot_token' => env('BALE_BOT_TOKEN'),
-        'bot_username' => env('BALE_BOT_USERNAME'),
-
-        // در هاست اشتراکی public_html کنار پوشه Laravel قرار دارد.
-        // در صورت تفاوت ساختار مسیر، مقدار PUBLIC_HTML_PATH را در .env تنظیم کنید.
-        'public_path' => env('PUBLIC_HTML_PATH', base_path('../public_html')),
-    ],
-
 ];
