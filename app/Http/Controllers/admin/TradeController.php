@@ -69,6 +69,19 @@ class TradeController extends Controller
             ->with('success', 'معامله با موفقیت ایجاد شد و آماده اجراست.');
     }
 
+    public function destroy(Trade $trade)
+    {
+        if ($trade->status === 'running') {
+            return back()->with('error', 'معامله در حال اجرا را نمی‌توان حذف کرد. ابتدا آن را متوقف کنید.');
+        }
+
+        $trade->delete();
+
+        return redirect()
+            ->route('trade.index')
+            ->with('success', 'معامله با موفقیت حذف شد.');
+    }
+
     public function show(Trade $trade)
     {
         $trade->load(['strategy.rules', 'market', 'marketSymbol']);
