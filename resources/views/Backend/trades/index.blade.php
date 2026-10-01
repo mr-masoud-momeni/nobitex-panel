@@ -29,6 +29,7 @@
                             <tr>
                                 <th>استراتژی</th>
                                 <th>نوع</th>
+                                <th>منبع</th>
                                 <th>نماد</th>
                                 <th>تایم‌فریم</th>
                                 <th>سرمایه</th>
@@ -50,7 +51,8 @@
                                             <span class="label label-danger">Live</span>
                                         @endif
                                     </td>
-                                    <td>{{ $trade->symbol }}</td>
+                                    <td>{{ $trade->market->name ?? '—' }}</td>
+                                    <td>{{ $trade->marketSymbol->display_name ?? $trade->symbol }}</td>
                                     <td>{{ $trade->timeframe }}</td>
                                     <td>{{ rtrim(rtrim(number_format($trade->initial_capital, 8, '.', ''), '0'), '.') }}</td>
                                     <td>
