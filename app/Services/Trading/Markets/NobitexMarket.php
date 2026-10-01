@@ -106,24 +106,28 @@ class NobitexMarket
         $resolution = self::RESOLUTIONS[$timeframe];
         $from = $this->warmupStart($start, $timeframe, $warmupCandles)->timestamp;
         $to = $end->timestamp;
+        $cursor = $to;
         $stored = 0;
-        $page = 1;
 
         /*
-         * Nobitex limits UDF history responses to 500 candles.
-         * The API explicitly provides "page" for older chunks.
-         * We keep the original from/to range fixed and walk pages
-         * instead of moving "to" while also sending countback.
+         * Nobitex UDF returns at most 500 candles per request.
+         *
+         * We deliberately use countback + a moving "to" cursor instead
+         * of mixing page with a fixed from/to range. countback asks for
+         * the newest candles before the cursor, then the cursor moves
+         * behind the oldest candle we received.
+         *
+         * The lower bound is applied locally so warm-up candles are
+         * included while anything older than the requested range is ignored.
          */
-        while (true) {
+        while ($cursor >= $from) {
             $response = Http::timeout(30)
                 ->acceptJson()
                 ->get(self::HISTORY_URL, [
                     'symbol' => strtoupper($marketSymbol->symbol),
                     'resolution' => $resolution,
-                    'from' => $from,
-                    'to' => $to,
-                    'page' => $page,
+                    'to' => $cursor,
+                    'countback' => 500,
                 ]);
 
             if (!$response->successful()) {
@@ -165,9 +169,14 @@ class NobitexMarket
             }
 
             $rows = [];
+            $oldestTimestamp = null;
 
             for ($i = 0; $i < $count; $i++) {
                 $timestamp = (int) $timestamps[$i];
+
+                if ($oldestTimestamp === null || $timestamp < $oldestTimestamp) {
+                    $oldestTimestamp = $timestamp;
+                }
 
                 if ($timestamp < $from || $timestamp > $to) {
                     continue;
@@ -197,18 +206,18 @@ class NobitexMarket
                 $stored += count($rows);
             }
 
-            /*
-             * A full page means there may be another older page.
-             * A partial page means we reached the beginning of the
-             * requested range (or the available history).
-             */
-            if ($count < 500) {
+            if ($oldestTimestamp === null || $oldestTimestamp < $from || $count < 500) {
                 break;
             }
 
-            $page++;
-        }
+            $nextCursor = $oldestTimestamp - 1;
 
+            if ($nextCursor >= $cursor) {
+                throw new RuntimeException('Nobitex historical data pagination did not move backwards.');
+            }
+
+            $cursor = $nextCursor;
+        }
         return $stored;
     }
 
