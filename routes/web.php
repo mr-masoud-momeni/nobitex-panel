@@ -38,6 +38,9 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->group(function () {
     Route::get('/trade', 'App\\Http\\Controllers\\admin\\TradeController@index')->name('trade.index');
     Route::get('/trade/create', 'App\\Http\\Controllers\\admin\\TradeController@create')->name('trade.create');
     Route::post('/trade', 'App\\Http\\Controllers\\admin\\TradeController@store')->name('trade.store');
+    Route::get('/trade/{trade}/edit', 'App\\Http\\Controllers\\admin\\TradeController@edit')->name('trade.edit');
+    Route::put('/trade/{trade}', 'App\\Http\\Controllers\\admin\\TradeController@update')->name('trade.update');
+    Route::post('/trade/{trade}/duplicate', 'App\\Http\\Controllers\\admin\\TradeController@duplicate')->name('trade.duplicate');
     Route::get('/trade/{trade}', 'App\\Http\\Controllers\\admin\\TradeController@show')->name('trade.show');
     Route::delete('/trade/{trade}', 'App\\Http\\Controllers\\admin\\TradeController@destroy')->name('trade.destroy');
     Route::post('/trade/{trade}/start', 'App\\Http\\Controllers\\admin\\TradeController@start')->name('trade.start');
