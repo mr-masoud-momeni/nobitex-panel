@@ -17,6 +17,7 @@ class UsersTableSeeder extends Seeder
             'email' => env('SEED_ADMIN_EMAIL', 'admin@example.com'),
             'phone' => env('SEED_ADMIN_PHONE'),
             'password' => Hash::make($password),
+            'email_verified_at' => now(),
         ]);
 
         $user->attachRole('admin');
