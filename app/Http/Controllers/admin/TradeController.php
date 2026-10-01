@@ -149,7 +149,7 @@ class TradeController extends Controller
             'market_id' => ['required', 'exists:markets,id'],
             'market_symbol_id' => [
                 'required',
-                Rule::exists('market_symbols', 'id')->where(function ($query) use ($request) {
+                Rule::exists('market_symbols', 'id')->where(function ($query) use ($request, $trade) {
                     return $query
                         ->where('market_id', $request->input('market_id'))
                         ->where(function ($q) use ($trade) {
