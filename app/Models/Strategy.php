@@ -23,4 +23,9 @@ class Strategy extends Model
     {
         return $this->hasMany(StrategyRule::class)->orderBy('type')->orderBy('sort_order');
     }
+
+    public function trades()
+    {
+        return $this->hasMany(Trade::class);
+    }
 }
