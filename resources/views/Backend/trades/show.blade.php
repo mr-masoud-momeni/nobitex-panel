@@ -49,6 +49,23 @@
 
                 <div style="margin-top:20px;">
                     @if($trade->status === 'draft')
+                        <a href="{{ route('trade.edit', $trade) }}" class="btn btn-warning">ویرایش</a>
+                    @endif
+
+                    <form action="{{ route('trade.duplicate', $trade) }}" method="post" style="display:inline;">
+                        @csrf
+                        <button type="submit" class="btn btn-info">داپلیکیت</button>
+                    </form>
+
+                    @if($trade->status !== 'running')
+                        <form action="{{ route('trade.destroy', $trade) }}" method="post" style="display:inline;" onsubmit="return confirm('آیا از حذف این معامله مطمئن هستید؟');">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="btn btn-danger">حذف</button>
+                        </form>
+                    @endif
+
+                    @if($trade->status === 'draft')
                         <form action="{{ route('trade.start', $trade) }}" method="post" style="display:inline;">
                             @csrf
                             <button type="submit" class="btn btn-success">▶ اجرا</button>
