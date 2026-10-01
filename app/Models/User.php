@@ -1,7 +1,5 @@
 <?php
-/** read this link for all changes in user CRUD
-https://docs.google.com/document/d/1dQGotVLWKT0ezYnV2vb81dl-eWqm8H3cVhIspm80FNs/edit#bookmark=id.senm0jrcaira
- */
+
 namespace App\Models;
 
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -23,9 +21,7 @@ class User extends Authenticatable implements MustVerifyEmail
 
         static::creating(function ($model) {
             $model->uuid = Str::uuid()->toString();
-            $randomBytes = random_bytes(4);
-            $randomString = bin2hex($randomBytes);
-            $model->path = $randomString;
+            $model->path = bin2hex(random_bytes(4));
         });
     }
 
@@ -61,43 +57,8 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(Menu::class);
     }
 
-    public function articles()
-    {
-        return $this->hasMany(Article::class);
-    }
-
-    public function categories()
-    {
-        return $this->hasMany(Category::class);
-    }
-
     public function emailGroups()
     {
         return $this->hasMany(EmailGroup::class);
-    }
-
-    public function products()
-    {
-        return $this->hasMany(Product::class);
-    }
-
-    public function order()
-    {
-        return $this->hasMany(Order::class);
-    }
-
-    public function shop()
-    {
-        return $this->hasOne(Shop::class);
-    }
-
-    public function baleConnections()
-    {
-        return $this->hasMany(ShopBaleConnection::class);
-    }
-
-    public function baleConnectionTokens()
-    {
-        return $this->hasMany(ShopBaleConnectionToken::class);
     }
 }

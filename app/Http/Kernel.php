@@ -7,7 +7,6 @@ use Illuminate\Foundation\Http\Kernel as HttpKernel;
 class Kernel extends HttpKernel
 {
     protected $middleware = [
-        // \App\Http\Middleware\TrustHosts::class,
         \App\Http\Middleware\TrustProxies::class,
         \Fruitcake\Cors\HandleCors::class,
         \App\Http\Middleware\PreventRequestsDuringMaintenance::class,
@@ -21,7 +20,6 @@ class Kernel extends HttpKernel
             \App\Http\Middleware\EncryptCookies::class,
             \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
             \Illuminate\Session\Middleware\StartSession::class,
-            // \Illuminate\Session\Middleware\AuthenticateSession::class,
             \Illuminate\View\Middleware\ShareErrorsFromSession::class,
             \App\Http\Middleware\VerifyCsrfToken::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
@@ -42,13 +40,7 @@ class Kernel extends HttpKernel
         'signed' => \Illuminate\Routing\Middleware\ValidateSignature::class,
         'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
-        'auth.buyer' => \App\Http\Middleware\AuthBuyer::class,
-        'buyer.verified' => \App\Http\Middleware\BuyerVerified::class,
         'checkRole' => \App\Http\Middleware\CheckRole::class,
-        'check.shop' => \App\Http\Middleware\CheckShopContext::class,
-        'role.buyer' => \App\Http\Middleware\BuyerRole::class,
         'platform.domain' => \App\Http\Middleware\PlatformDomainOnly::class,
-        'check.shop.buyer' => \App\Http\Middleware\CheckBuyerShopContext::class,
-        'shop.context' => \App\Http\Middleware\ResolveShopContext::class,
     ];
 }
