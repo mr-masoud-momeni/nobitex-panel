@@ -12,8 +12,6 @@ class CreateStrategiesTable extends Migration
             $table->id();
             $table->string('name');
             $table->text('description')->nullable();
-            $table->text('entry_conditions')->nullable();
-            $table->text('exit_conditions')->nullable();
             $table->decimal('risk_percent', 8, 3)->nullable();
             $table->decimal('stop_loss', 8, 3)->nullable();
             $table->decimal('take_profit', 8, 3)->nullable();
