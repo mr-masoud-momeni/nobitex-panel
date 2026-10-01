@@ -11,6 +11,13 @@
             </div>
 
             <div class="panel-body">
+                @if($markets->isEmpty())
+                    <div class="alert alert-warning">
+                        هنوز هیچ منبع بازاری فعال نیست یا نمادهای آن همگام‌سازی نشده‌اند.
+                        ابتدا از بخش بازارها، نمادها را بروزرسانی کنید.
+                    </div>
+                @endif
+
                 <form action="{{ route('trade.store') }}" method="post">
                     @csrf
 
@@ -35,8 +42,37 @@
                         </div>
 
                         <div class="col-md-6 form-group">
+                            <label>منبع بازار</label>
+                            <select name="market_id" id="trade-market" class="form-control" required>
+                                <option value="">انتخاب منبع</option>
+                                @foreach($markets as $market)
+                                    <option value="{{ $market->id }}" data-symbol-count="{{ $market->symbols->count() }}">
+                                        {{ $market->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div class="col-md-6 form-group">
                             <label>نماد</label>
-                            <input type="text" name="symbol" class="form-control" placeholder="BTC/USDT" required>
+                            <select name="market_symbol_id" id="trade-symbol" class="form-control" required disabled>
+                                <option value="">ابتدا منبع بازار را انتخاب کنید</option>
+                                @foreach($markets as $market)
+                                    @foreach($market->symbols as $symbol)
+                                        <option
+                                            value="{{ $symbol->id }}"
+                                            data-market-id="{{ $market->id }}"
+                                            data-symbol="{{ $symbol->symbol }}"
+                                            style="display:none;"
+                                        >
+                                            {{ $symbol->display_name }}
+                                        </option>
+                                    @endforeach
+                                @endforeach
+                            </select>
+                            <small id="trade-symbol-help" class="help-block">
+                                نمادهای فعال منبع انتخاب‌شده نمایش داده می‌شوند.
+                            </small>
                         </div>
 
                         <div class="col-md-6 form-group">
@@ -79,7 +115,7 @@
                         </div>
                     </div>
 
-                    <button type="submit" class="btn btn-success">ایجاد معامله</button>
+                    <button type="submit" class="btn btn-success" {{ $markets->isEmpty() ? 'disabled' : '' }}>ایجاد معامله</button>
                     <a href="{{ route('trade.index') }}" class="btn btn-default">انصراف</a>
                 </form>
             </div>
@@ -93,13 +129,47 @@
 (function () {
     var type = document.getElementById('trade-type');
     var fields = document.getElementById('backtest-fields');
+    var market = document.getElementById('trade-market');
+    var symbol = document.getElementById('trade-symbol');
+    var help = document.getElementById('trade-symbol-help');
 
     function toggleBacktestFields() {
         fields.style.display = type.value === 'backtest' ? '' : 'none';
     }
 
+    function updateSymbols() {
+        var marketId = market.value;
+        var options = symbol.querySelectorAll('option[data-market-id]');
+        var visibleCount = 0;
+
+        symbol.value = '';
+
+        options.forEach(function (option) {
+            var visible = option.getAttribute('data-market-id') === marketId;
+            option.style.display = visible ? '' : 'none';
+            option.disabled = !visible;
+
+            if (visible) {
+                visibleCount++;
+            }
+        });
+
+        symbol.disabled = !marketId || visibleCount === 0;
+
+        if (!marketId) {
+            help.textContent = 'ابتدا منبع بازار را انتخاب کنید.';
+        } else if (visibleCount === 0) {
+            help.textContent = 'برای این منبع هنوز نماد فعالی ثبت نشده است.';
+        } else {
+            help.textContent = visibleCount + ' نماد فعال در این منبع موجود است.';
+        }
+    }
+
     type.addEventListener('change', toggleBacktestFields);
+    market.addEventListener('change', updateSymbols);
+
     toggleBacktestFields();
+    updateSymbols();
 })();
 </script>
 @endsection
