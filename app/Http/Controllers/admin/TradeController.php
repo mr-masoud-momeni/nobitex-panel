@@ -7,6 +7,7 @@ use App\Models\Market;
 use App\Models\MarketSymbol;
 use App\Models\Strategy;
 use App\Models\Trade;
+use App\Services\Trading\Indicators\IndicatorWarmup;
 use App\Services\Trading\Markets\NobitexMarket;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -193,7 +194,7 @@ class TradeController extends Controller
         return view('Backend.trades.show', compact('trade'));
     }
 
-    public function start(Trade $trade, NobitexMarket $nobitexMarket)
+    public function start(Trade $trade, NobitexMarket $nobitexMarket, IndicatorWarmup $indicatorWarmup)
     {
         if ($trade->status === 'running') {
             return back();
@@ -223,11 +224,15 @@ class TradeController extends Controller
                     throw new \RuntimeException('در حال حاضر فقط منبع Nobitex برای دریافت داده تاریخی پیاده‌سازی شده است.');
                 }
 
+                $strategy = $trade->strategy()->with('rules')->firstOrFail();
+                $warmupCandles = $indicatorWarmup->candlesFor($strategy);
+
                 $count = $nobitexMarket->syncCandles(
                     $marketSymbol,
                     $trade->timeframe,
                     Carbon::parse($trade->start_date),
-                    Carbon::parse($trade->end_date)
+                    Carbon::parse($trade->end_date),
+                    $warmupCandles
                 );
 
                 $trade->update([
@@ -236,7 +241,7 @@ class TradeController extends Controller
                     'stopped_at' => null,
                 ]);
 
-                return back()->with('success', "دریافت داده انجام شد. {$count} کندل در جدول market_candles ثبت/به‌روزرسانی شد.");
+                return back()->with('success', "دریافت داده انجام شد. {$count} کندل شامل {$warmupCandles} کندل warm-up در جدول market_candles ثبت/به‌روزرسانی شد.");
             } catch (Throwable $e) {
                 $trade->update([
                     'status' => 'draft',
