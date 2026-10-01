@@ -19,7 +19,7 @@ class StrategyRule extends Model
 
     protected $casts = [
         'parameters' => 'array',
-        'value' => 'array',
+        'value' => 'json',
     ];
 
     public function strategy()
