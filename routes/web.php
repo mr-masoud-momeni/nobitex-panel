@@ -39,6 +39,7 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->group(function () {
     Route::get('/trade/create', 'App\\Http\\Controllers\\admin\\TradeController@create')->name('trade.create');
     Route::post('/trade', 'App\\Http\\Controllers\\admin\\TradeController@store')->name('trade.store');
     Route::get('/trade/{trade}', 'App\\Http\\Controllers\\admin\\TradeController@show')->name('trade.show');
+    Route::delete('/trade/{trade}', 'App\\Http\\Controllers\\admin\\TradeController@destroy')->name('trade.destroy');
     Route::post('/trade/{trade}/start', 'App\\Http\\Controllers\\admin\\TradeController@start')->name('trade.start');
     Route::post('/trade/{trade}/stop', 'App\\Http\\Controllers\\admin\\TradeController@stop')->name('trade.stop');
 
