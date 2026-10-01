@@ -108,29 +108,7 @@ class NobitexMarket
         $to = $end->timestamp;
         $cursor = $to;
         $stored = 0;
-        $page = 0;
-
-        /*
-         * Temporary diagnostic logging.
-         *
-         * This lets us verify exactly what we request from Nobitex and
-         * exactly what Nobitex returns on every pagination step.
-         */
-        \Log::info('Nobitex candle sync started', [
-            'symbol' => $marketSymbol->symbol,
-            'timeframe' => $timeframe,
-            'start' => $start->format('Y-m-d H:i:s P'),
-            'end' => $end->format('Y-m-d H:i:s P'),
-            'from_timestamp' => $from,
-            'from_date' => Carbon::createFromTimestamp($from)->format('Y-m-d H:i:s P'),
-            'to_timestamp' => $to,
-            'to_date' => Carbon::createFromTimestamp($to)->format('Y-m-d H:i:s P'),
-            'warmup_candles' => $warmupCandles,
-        ]);
-
-        while ($cursor >= $from) {
-            $page++;
-
+                while ($cursor >= $from) {
             $response = Http::timeout(30)
                 ->acceptJson()
                 ->get(self::HISTORY_URL, [
@@ -148,14 +126,6 @@ class NobitexMarket
 
             $payload = $response->json();
 
-            if (($payload['s'] ?? null) === 'no_data') {
-                \Log::info('Nobitex candle sync stopped: no_data', [
-                    'page' => $page,
-                    'cursor' => $cursor,
-                    'cursor_date' => Carbon::createFromTimestamp($cursor)->format('Y-m-d H:i:s P'),
-                ]);
-                break;
-            }
 
             if (($payload['s'] ?? null) !== 'ok') {
                 throw new RuntimeException(
@@ -179,13 +149,6 @@ class NobitexMarket
                 count($volumes)
             );
 
-            if ($count === 0) {
-                \Log::info('Nobitex candle sync stopped: empty response', [
-                    'page' => $page,
-                    'cursor' => $cursor,
-                ]);
-                break;
-            }
 
             $oldestTimestamp = null;
             $newestTimestamp = null;
@@ -220,21 +183,6 @@ class NobitexMarket
                 ];
             }
 
-            \Log::info('Nobitex candle sync page', [
-                'page' => $page,
-                'request_cursor' => $cursor,
-                'request_cursor_date' => Carbon::createFromTimestamp($cursor)->format('Y-m-d H:i:s P'),
-                'response_count' => $count,
-                'response_oldest' => $oldestTimestamp,
-                'response_oldest_date' => $oldestTimestamp !== null
-                    ? Carbon::createFromTimestamp($oldestTimestamp)->format('Y-m-d H:i:s P')
-                    : null,
-                'response_newest' => $newestTimestamp,
-                'response_newest_date' => $newestTimestamp !== null
-                    ? Carbon::createFromTimestamp($newestTimestamp)->format('Y-m-d H:i:s P')
-                    : null,
-                'rows_kept' => count($rows),
-            ]);
 
             if ($rows) {
                 MarketCandle::upsert(
@@ -259,12 +207,6 @@ class NobitexMarket
             $cursor = $nextCursor;
         }
 
-        \Log::info('Nobitex candle sync finished', [
-            'pages' => $page,
-            'stored' => $stored,
-            'final_cursor' => $cursor,
-            'final_cursor_date' => Carbon::createFromTimestamp($cursor)->format('Y-m-d H:i:s P'),
-        ]);
 
         return $stored;
     }
