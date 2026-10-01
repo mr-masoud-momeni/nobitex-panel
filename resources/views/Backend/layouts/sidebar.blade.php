@@ -20,6 +20,10 @@
             </ul>
         </li>
 
+        <li class="{{ Request::is('admin/strategy*') ? 'active' : '' }}">
+            <a href="{{ route('strategy.index') }}">استراتژی‌های معاملاتی</a>
+        </li>
+
         <li class="dropdown {{ Request::is('admin/email*') ? 'open' : '' }}">
             <a href="#" class="dropdown-toggle" data-toggle="dropdown">اطلاع‌رسانی<span class="caret"></span></a>
             <ul class="dropdown-menu" role="menu">
