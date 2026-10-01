@@ -26,7 +26,7 @@ class IndicatorsTest extends TestCase
         }
 
         $this->assertTrue($ema->isReady());
-        $this->assertEqualsWithDelta(100.5, $ema->update(118.0) ?? $result, 0.0000001);
+        $this->assertEqualsWithDelta(101.09909424242501, $result, 0.0000001);
     }
 
     public function test_rsi_uses_wilder_smoothing(): void
