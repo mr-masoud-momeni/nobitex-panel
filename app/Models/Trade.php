@@ -8,6 +8,8 @@ class Trade extends Model
 {
     protected $fillable = [
         'strategy_id',
+        'market_id',
+        'market_symbol_id',
         'type',
         'symbol',
         'timeframe',
@@ -37,5 +39,15 @@ class Trade extends Model
     public function strategy()
     {
         return $this->belongsTo(Strategy::class);
+    }
+
+    public function market()
+    {
+        return $this->belongsTo(Market::class);
+    }
+
+    public function marketSymbol()
+    {
+        return $this->belongsTo(MarketSymbol::class);
     }
 }
