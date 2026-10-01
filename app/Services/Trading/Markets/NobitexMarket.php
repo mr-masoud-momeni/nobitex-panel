@@ -107,8 +107,15 @@ class NobitexMarket
         $from = $this->warmupStart($start, $timeframe, $warmupCandles)->timestamp;
         $to = $end->timestamp;
         $stored = 0;
+        $page = 1;
 
-        while ($to >= $from) {
+        /*
+         * Nobitex limits UDF history responses to 500 candles.
+         * The API explicitly provides "page" for older chunks.
+         * We keep the original from/to range fixed and walk pages
+         * instead of moving "to" while also sending countback.
+         */
+        while (true) {
             $response = Http::timeout(30)
                 ->acceptJson()
                 ->get(self::HISTORY_URL, [
@@ -116,7 +123,7 @@ class NobitexMarket
                     'resolution' => $resolution,
                     'from' => $from,
                     'to' => $to,
-                    'countback' => 500,
+                    'page' => $page,
                 ]);
 
             if (!$response->successful()) {
@@ -180,29 +187,29 @@ class NobitexMarket
                 ];
             }
 
-            if (!$rows) {
+            if ($rows) {
+                MarketCandle::upsert(
+                    $rows,
+                    ['market_symbol_id', 'timeframe', 'timestamp'],
+                    ['open', 'high', 'low', 'close', 'volume', 'updated_at']
+                );
+
+                $stored += count($rows);
+            }
+
+            /*
+             * A full page means there may be another older page.
+             * A partial page means we reached the beginning of the
+             * requested range (or the available history).
+             */
+            if ($count < 500) {
                 break;
             }
 
-            MarketCandle::upsert(
-                $rows,
-                ['market_symbol_id', 'timeframe', 'timestamp'],
-                ['open', 'high', 'low', 'close', 'volume', 'updated_at']
-            );
-
-            $stored += count($rows);
-
-            $oldest = min(array_map(fn ($row) => $row['timestamp'], $rows));
-
-            if ($oldest <= $from || $count < 500) {
-                break;
-            }
-
-            $to = $oldest - 1;
+            $page++;
         }
 
         return $stored;
-    }
 
     private function warmupStart(Carbon $start, string $timeframe, int $warmupCandles): Carbon
     {
