@@ -106,17 +106,18 @@ class NobitexMarket
         $resolution = self::RESOLUTIONS[$timeframe];
         $from = $this->warmupStart($start, $timeframe, $warmupCandles)->timestamp;
         $to = $end->timestamp;
-        $cursor = $to;
+        $page = 1;
         $stored = 0;
 
-        while ($cursor >= $from) {
+        while (true) {
             $response = Http::timeout(30)
                 ->acceptJson()
                 ->get(self::HISTORY_URL, [
                     'symbol' => strtoupper($marketSymbol->symbol),
                     'resolution' => $resolution,
-                    'to' => $cursor,
+                    'to' => $to,
                     'countback' => 500,
+                    'page' => $page,
                 ]);
 
             if (!$response->successful()) {
@@ -186,17 +187,11 @@ class NobitexMarket
                 $stored += count($rows);
             }
 
-            if ($oldestTimestamp === null || $oldestTimestamp < $from || $count < 500) {
+            if ($oldestTimestamp === null || $oldestTimestamp <= $from || $count < 500) {
                 break;
             }
 
-            $nextCursor = $oldestTimestamp - 1;
-
-            if ($nextCursor >= $cursor) {
-                throw new RuntimeException('Nobitex historical data pagination did not move backwards.');
-            }
-
-            $cursor = $nextCursor;
+            $page++;
         }
 
         return $stored;
