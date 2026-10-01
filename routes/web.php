@@ -30,6 +30,11 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->group(function () {
     Route::resource('/email', 'App\Http\Controllers\admin\SendEmail');
     Route::resource('/email-group', 'App\Http\Controllers\admin\EmailGroupController');
     Route::resource('/menu', 'App\Http\Controllers\admin\MenuController');
+
+    Route::get('/strategy', 'App\Http\Controllers\admin\StrategyController@index')->name('strategy.index');
+    Route::get('/strategy/create', 'App\Http\Controllers\admin\StrategyController@create')->name('strategy.create');
+    Route::post('/strategy', 'App\Http\Controllers\admin\StrategyController@store')->name('strategy.store');
+
     Route::post('/upload-image', 'App\Http\Controllers\admin\panelAdmin@UploadImageInText')->name('uploadImage');
 });
 
