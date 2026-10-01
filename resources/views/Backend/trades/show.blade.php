@@ -19,7 +19,8 @@
                 </div>
                 <hr>
                 <div class="row">
-                    <div class="col-md-4"><strong>نماد:</strong> {{ $trade->symbol }}</div>
+                    <div class="col-md-4"><strong>منبع:</strong> {{ $trade->market->name ?? "—" }}</div>
+                    <div class="col-md-4"><strong>نماد:</strong> {{ $trade->marketSymbol->display_name ?? $trade->symbol }}</div>
                     <div class="col-md-4"><strong>تایم‌فریم:</strong> {{ $trade->timeframe }}</div>
                     <div class="col-md-4"><strong>سرمایه اولیه:</strong> {{ $trade->initial_capital }}</div>
                 </div>
