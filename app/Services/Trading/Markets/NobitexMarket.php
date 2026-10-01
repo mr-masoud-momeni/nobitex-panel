@@ -126,7 +126,9 @@ class NobitexMarket
                 );
             }
 
-            $payload = $response->json();\n\n            if (($payload['s'] ?? null) !== 'ok') {
+            $payload = $response->json();
+
+            if (($payload['s'] ?? null) !== 'ok') {
                 throw new RuntimeException(
                     'Nobitex historical data request failed: '.($payload['errmsg'] ?? 'unknown error').'.'
                 );
