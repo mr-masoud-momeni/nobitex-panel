@@ -9,7 +9,7 @@ use RuntimeException;
 
 class NobitexMarket
 {
-    private const STATS_URL = 'https://api.nobitex.ir/market/stats';
+    private const STATS_URL = 'https://apiv2.nobitex.ir/market/stats';
 
     public function syncSymbols(): int
     {
