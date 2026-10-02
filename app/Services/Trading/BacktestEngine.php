@@ -5,6 +5,7 @@ namespace App\Services\Trading;
 use App\Models\Strategy;
 use App\Models\StrategyRule;
 use App\Models\Trade;
+use Carbon\Carbon;
 use App\Services\Trading\Indicators\Ema;
 use App\Services\Trading\Indicators\Macd;
 use App\Services\Trading\Indicators\Rsi;
@@ -33,6 +34,7 @@ class BacktestEngine
         $winningTrades = 0;
         $losingTrades = 0;
         $lastPrice = null;
+        $startTimestamp = Carbon::parse($trade->start_date)->timestamp;
 
         foreach ($candles as $candle) {
             $close = (float) $candle->close;
@@ -51,6 +53,11 @@ class BacktestEngine
                 } else {
                     $values[$key] = $indicator->update($close);
                 }
+            }
+
+            if ((int) $candle->timestamp < $startTimestamp) {
+                $previousValues = $values;
+                continue;
             }
 
             if ($quantity > 0) {
