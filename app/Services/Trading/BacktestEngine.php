@@ -33,7 +33,9 @@ class BacktestEngine
         $totalTrades = 0;
         $winningTrades = 0;
         $losingTrades = 0;
+        $executionLog = [];
         $lastPrice = null;
+        $entryTimestamp = null;
         $startDate = $trade->start_date;
         $startTimestamp = $startDate instanceof \DateTimeInterface
             ? $startDate->getTimestamp()
@@ -66,8 +68,15 @@ class BacktestEngine
             if ($quantity > 0) {
                 $exitPrice = $this->exitPriceFromRisk($entryPrice, $high, $low, $strategy);
 
+                $exitReason = null;
+
+                if ($exitPrice !== null) {
+                    $exitReason = 'stop_loss_or_take_profit';
+                }
+
                 if ($exitPrice === null && !$exitRules->isEmpty() && $this->evaluateRules($exitRules, $values, $previousValues)) {
                     $exitPrice = $close;
+                    $exitReason = 'exit_rule';
                 }
 
                 if ($exitPrice !== null) {
@@ -81,6 +90,17 @@ class BacktestEngine
 
                     $totalTrades++;
                     $profit >= 0 ? $winningTrades++ : $losingTrades++;
+                    $executionLog[] = [
+                        'entry_time' => $this->formatTimestamp($entryTimestamp),
+                        'entry_price' => $entryPrice,
+                        'entry_value' => $entryValue,
+                        'exit_time' => $this->formatTimestamp((int) $candle->timestamp),
+                        'exit_price' => $exitPrice,
+                        'profit' => $profit,
+                        'profit_percent' => $entryValue > 0 ? ($profit / $entryValue) * 100 : 0,
+                        'exit_reason' => $exitReason,
+                        'cash_after' => $cash,
+                    ];
                     $quantity = 0.0;
                     $entryPrice = null;
                     $entryValue = null;
@@ -101,6 +121,7 @@ class BacktestEngine
                     $entryValue = ($quantity * $close) + $entryFee;
                     $cash -= $entryValue;
                     $entryPrice = $close;
+                    $entryTimestamp = (int) $candle->timestamp;
                 }
             }
 
@@ -118,6 +139,17 @@ class BacktestEngine
             );
 
             $totalTrades++;
+            $executionLog[] = [
+                'entry_time' => $this->formatTimestamp($entryTimestamp),
+                'entry_price' => $entryPrice,
+                'entry_value' => $entryValue,
+                'exit_time' => $this->formatTimestamp((int) $trade->end_date->timestamp),
+                'exit_price' => $lastPrice,
+                'profit' => $profit,
+                'profit_percent' => $entryValue > 0 ? ($profit / $entryValue) * 100 : 0,
+                'exit_reason' => 'end_of_test',
+                'cash_after' => $cash,
+            ];
             $profit >= 0 ? $winningTrades++ : $losingTrades++;
         }
 
@@ -133,7 +165,13 @@ class BacktestEngine
             'winning_trades' => $winningTrades,
             'losing_trades' => $losingTrades,
             'final_capital' => $cash,
+            'execution_log' => $executionLog,
         ];
+    }
+
+    private function formatTimestamp(?int $timestamp): ?string
+    {
+        return $timestamp ? Carbon::createFromTimestamp($timestamp)->format('Y-m-d H:i:s') : null;
     }
 
     private function buildIndicators($rules): array
