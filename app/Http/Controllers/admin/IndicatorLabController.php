@@ -178,7 +178,7 @@ class IndicatorLabController extends Controller
         return view('Backend.indicators.index', [
             'markets' => $this->markets(),
             'result' => $result,
-        ])->withInput();
+        ]);
     }
 
     private function markets()
