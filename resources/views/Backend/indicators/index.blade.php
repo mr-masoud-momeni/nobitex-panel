@@ -112,13 +112,13 @@
                         <div class="col-md-4">
                             <label class="field-label">از تاریخ</label>
                             <input type="datetime-local" name="start_date" class="form-control"
-                                   value="{{ old('start_date', $result['start_date'] ?? '2024-10-20T20:00') }}" required>
+                                   value="{{ old('start_date', $result['start_date'] ?? $default_start_date) }}" required>
                         </div>
 
                         <div class="col-md-4">
                             <label class="field-label">تا تاریخ</label>
                             <input type="datetime-local" name="end_date" class="form-control"
-                                   value="{{ old('end_date', $result['end_date'] ?? '2025-12-01T11:00') }}" required>
+                                   value="{{ old('end_date', $result['end_date'] ?? $default_end_date) }}" required>
                         </div>
 
                         <div class="col-md-4" style="padding-top:24px;">
