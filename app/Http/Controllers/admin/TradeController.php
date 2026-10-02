@@ -169,6 +169,7 @@ class TradeController extends Controller
             'timeframe' => ['required', 'string', 'max:20'],
             'initial_capital' => ['required', 'numeric', 'gt:0'],
             'fee_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'warmup_candles' => ['required', 'integer', 'min:1', 'max:100000'],
             'start_date' => ['nullable', 'date'],
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
         ]);
@@ -225,7 +226,7 @@ class TradeController extends Controller
                 }
 
                 $strategy = $trade->strategy()->with('rules')->firstOrFail();
-                $warmupCandles = $indicatorWarmup->candlesFor($strategy);
+                $warmupCandles = $indicatorWarmup->candlesFor($strategy, $trade->warmup_candles);
 
                 $count = $nobitexMarket->syncCandles(
                     $marketSymbol,
