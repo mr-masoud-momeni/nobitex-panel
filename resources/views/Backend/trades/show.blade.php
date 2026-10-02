@@ -50,7 +50,8 @@
                 <hr>
 
                 <h4>گزارش ورود و خروج بک‌تست</h4>
-                @if($trade->backtest_log && count($trade->backtest_log))
+                @php($backtestLog = is_array($trade->backtest_log) ? $trade->backtest_log : (json_decode($trade->backtest_log ?? '[]', true) ?: []))
+                @if(count($backtestLog))
                     <div class="table-responsive">
                         <table class="table table-bordered table-striped">
                             <thead>
@@ -67,7 +68,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach($trade->backtest_log as $index => $execution)
+                                @foreach($backtestLog as $index => $execution)
                                     <tr>
                                         <td>{{ $index + 1 }}</td>
                                         <td>{{ $execution['entry_time'] ?? '—' }}</td>
