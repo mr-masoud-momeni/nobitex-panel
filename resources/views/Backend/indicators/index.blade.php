@@ -149,7 +149,13 @@
         @if($result)
             <div class="panel panel-default chart-panel">
                 <div class="panel-heading clearfix">
-                    <strong>نتیجه {{ strtoupper($result['indicator']) }} {{ $result['period'] }}</strong>
+                    <strong>
+                        @if(($result['indicator'] ?? 'ema') === 'macd')
+                            نتیجه MACD {{ $result['macd_fast'] }}/{{ $result['macd_slow'] }}/{{ $result['macd_signal'] }}
+                        @else
+                            نتیجه {{ strtoupper($result['indicator']) }} {{ $result['period'] }}
+                        @endif
+                    </strong>
                     <span class="pull-left">{{ $result['symbol'] }} / {{ $result['timeframe'] }}</span>
                 </div>
 
@@ -330,7 +336,11 @@
 
     function updateIndicatorFields() {
         var isMacd = indicator.value === 'macd';
-        if (standard) standard.style.display = isMacd ? 'none' : '';
+        if (standard) {
+            standard.style.display = isMacd ? 'none' : '';
+            var periodInput = standard.querySelector('input[name="period"]');
+            if (periodInput) periodInput.required = !isMacd;
+        }
         Array.prototype.forEach.call(macdFields, function (field) {
             field.style.display = isMacd ? '' : 'none';
         });
