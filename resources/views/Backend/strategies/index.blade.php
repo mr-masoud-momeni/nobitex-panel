@@ -28,6 +28,7 @@
                                 <th>حد ضرر</th>
                                 <th>حد سود</th>
                                 <th>وضعیت</th>
+                                <th>عملیات</th>
                             </tr>
                             </thead>
                             <tbody>
@@ -43,6 +44,14 @@
                                         @else
                                             <span class="label label-default">غیرفعال</span>
                                         @endif
+                                    </td>
+                                    <td>
+                                        <form action="{{ route('strategy.duplicate', $strategy) }}" method="post" style="display:inline;">
+                                            @csrf
+                                            <button type="submit" class="btn btn-default btn-xs">
+                                                داپلیکیت
+                                            </button>
+                                        </form>
                                     </td>
                                 </tr>
                             @endforeach
