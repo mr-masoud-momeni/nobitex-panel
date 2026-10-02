@@ -15,6 +15,7 @@ class Trade extends Model
         'timeframe',
         'initial_capital',
         'fee_percent',
+        'warmup_candles',
         'start_date',
         'end_date',
         'status',
@@ -29,6 +30,7 @@ class Trade extends Model
     ];
 
     protected $casts = [
+        'warmup_candles' => 'integer',
         'start_date' => 'datetime',
         'end_date' => 'datetime',
         'started_at' => 'datetime',
