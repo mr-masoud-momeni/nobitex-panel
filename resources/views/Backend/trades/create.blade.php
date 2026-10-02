@@ -170,7 +170,7 @@
     initJalaliDatepicker('#trade-start-date-display', '#trade-start-date', startUnix);
     initJalaliDatepicker('#trade-end-date-display', '#trade-end-date', endUnix);
 
-    document.querySelector('form').addEventListener('submit', function () {
+    document.querySelector('form').addEventListener('submit', function (event) {
         var start = parseInt(document.getElementById('trade-start-date').value || '0', 10);
         var end = parseInt(document.getElementById('trade-end-date').value || '0', 10);
 
