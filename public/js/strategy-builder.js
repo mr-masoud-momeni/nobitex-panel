@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', function () {
             label: 'MACD',
             parameters: ['fast', 'slow', 'signal'],
             compareWith: ['macd'],
-            operators: ['>', '<', '>=', '<=', '=']
+            operators: ['>', '<', '>=', '<=', '=', 'slope_>', 'slope_<']
         },
         volume: {
             label: 'حجم',
