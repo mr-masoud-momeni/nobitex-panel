@@ -22,6 +22,8 @@
                     <div class="col-md-4"><strong>منبع:</strong> {{ $trade->market->name ?? "—" }}</div>
                     <div class="col-md-4"><strong>نماد:</strong> {{ $trade->marketSymbol->display_name ?? $trade->symbol }}</div>
                     <div class="col-md-4"><strong>تایم‌فریم:</strong> {{ $trade->timeframe }}</div>
+                    <div class="col-md-4"><strong>از تاریخ:</strong> {{ $startDateJalali ?? '—' }}</div>
+                    <div class="col-md-4"><strong>تا تاریخ:</strong> {{ $endDateJalali ?? '—' }}</div>
                     <div class="col-md-4"><strong>سرمایه اولیه:</strong> {{ $trade->initial_capital }}</div>
                 </div>
                 <hr>
@@ -50,7 +52,6 @@
                 <hr>
 
                 <h4>گزارش ورود و خروج بک‌تست</h4>
-                @php($backtestLog = is_array($trade->backtest_log) ? $trade->backtest_log : (json_decode($trade->backtest_log ?? '[]', true) ?: []))
                 @if(count($backtestLog))
                     <div class="table-responsive">
                         <table class="table table-bordered table-striped">
@@ -71,9 +72,9 @@
                                 @foreach($backtestLog as $index => $execution)
                                     <tr>
                                         <td>{{ $index + 1 }}</td>
-                                        <td>{{ $execution['entry_time'] ?? '—' }}</td>
+                                        <td>{{ $execution['entry_time_jalali'] ?? $execution['entry_time'] ?? '—' }}</td>
                                         <td>{{ isset($execution['entry_price']) ? number_format($execution['entry_price'], 2) : '—' }}</td>
-                                        <td>{{ $execution['exit_time'] ?? '—' }}</td>
+                                        <td>{{ $execution['exit_time_jalali'] ?? $execution['exit_time'] ?? '—' }}</td>
                                         <td>{{ isset($execution['exit_price']) ? number_format($execution['exit_price'], 2) : '—' }}</td>
                                         <td>{{ isset($execution['profit']) ? number_format($execution['profit'], 2) : '—' }}</td>
                                         <td>{{ isset($execution['profit_percent']) ? number_format($execution['profit_percent'], 2) : '—' }}%</td>
