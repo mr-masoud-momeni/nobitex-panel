@@ -16,6 +16,10 @@
     .indicator-lab .chart-ema { fill: none; stroke: #c79a3b; stroke-width: 2.5; vector-effect: non-scaling-stroke; }
     .indicator-lab .chart-rsi { fill: none; stroke: #c79a3b; stroke-width: 2.5; vector-effect: non-scaling-stroke; }
     .indicator-lab .chart-rsi-level { stroke: #ddd; stroke-width: 1; stroke-dasharray: 6 5; }
+    .indicator-lab .chart-macd { fill: none; stroke: #c79a3b; stroke-width: 2.5; vector-effect: non-scaling-stroke; }
+    .indicator-lab .chart-signal { fill: none; stroke: #777; stroke-width: 2; vector-effect: non-scaling-stroke; }
+    .indicator-lab .chart-zero { stroke: #ddd; stroke-width: 1; stroke-dasharray: 6 5; }
+    .indicator-lab .chart-histogram { fill: #c79a3b; opacity: .35; }
     .indicator-lab .chart-legend { margin-top: 10px; color: #666; }
     .indicator-lab .legend-item { display: inline-block; margin-left: 18px; }
     .indicator-lab .legend-line { display: inline-block; width: 24px; height: 2px; vertical-align: middle; margin-left: 6px; background: #777; }
@@ -51,6 +55,7 @@
                             <select name="indicator" id="indicator-type" class="form-control">
                                 <option value="ema" {{ old('indicator', $result['indicator'] ?? 'ema') === 'ema' ? 'selected' : '' }}>EMA</option>
                                 <option value="rsi" {{ old('indicator', $result['indicator'] ?? 'ema') === 'rsi' ? 'selected' : '' }}>RSI</option>
+                                <option value="macd" {{ old('indicator', $result['indicator'] ?? 'ema') === 'macd' ? 'selected' : '' }}>MACD</option>
                             </select>
                         </div>
 
@@ -81,11 +86,23 @@
                             </select>
                         </div>
 
-                        <div class="col-md-1">
+                        <div class="col-md-1" id="standard-period-field">
                             <label class="field-label">Period</label>
                             <input type="number" name="period" class="form-control"
                                    value="{{ old('period', $result['period'] ?? 14) }}"
                                    min="1" max="1000" required>
+                        </div>
+                        <div class="col-md-1 macd-field" style="display:none;">
+                            <label class="field-label">Fast</label>
+                            <input type="number" name="macd_fast" class="form-control" value="{{ old('macd_fast', $result['macd_fast'] ?? 12) }}" min="1" max="1000">
+                        </div>
+                        <div class="col-md-1 macd-field" style="display:none;">
+                            <label class="field-label">Slow</label>
+                            <input type="number" name="macd_slow" class="form-control" value="{{ old('macd_slow', $result['macd_slow'] ?? 26) }}" min="2" max="1000">
+                        </div>
+                        <div class="col-md-1 macd-field" style="display:none;">
+                            <label class="field-label">Signal</label>
+                            <input type="number" name="macd_signal" class="form-control" value="{{ old('macd_signal', $result['macd_signal'] ?? 9) }}" min="1" max="1000">
                         </div>
 
                         <div class="col-md-2">
@@ -144,8 +161,14 @@
                     <div class="chart-legend">
                         @if(($result['indicator'] ?? 'ema') === 'ema')
                             <span class="legend-item"><span class="legend-line"></span> Close</span>
+                            <span class="legend-item"><span class="legend-line ema"></span> EMA {{ $result['period'] }}</span>
+                        @elseif(($result['indicator'] ?? 'ema') === 'macd')
+                            <span class="legend-item"><span class="legend-line ema"></span> MACD {{ $result['macd_fast'] }}/{{ $result['macd_slow'] }}</span>
+                            <span class="legend-item"><span class="legend-line"></span> Signal {{ $result['macd_signal'] }}</span>
+                            <span class="legend-item">Histogram</span>
+                        @else
+                            <span class="legend-item"><span class="legend-line ema"></span> RSI {{ $result['period'] }}</span>
                         @endif
-                        <span class="legend-item"><span class="legend-line ema"></span> {{ strtoupper($result['indicator']) }} {{ $result['period'] }}</span>
                     </div>
 
                     <div class="stats">
@@ -153,7 +176,7 @@
                         <div class="stat"><small>Warm-up درخواستی</small><strong>{{ number_format($result['warmup_setting']) }}</strong></div>
                         <div class="stat"><small>کل کندل‌های محاسبات</small><strong>{{ number_format($result['candle_count']) }}</strong></div>
                         <div class="stat"><small>کندل‌های خروجی</small><strong>{{ number_format($result['displayed_count']) }}</strong></div>
-                        <div class="stat"><small>کندل دارای EMA</small><strong>{{ number_format($result['ready_count']) }}</strong></div>
+                        <div class="stat"><small>کندل آماده اندیکاتور</small><strong>{{ number_format($result['ready_count']) }}</strong></div>
                         <div class="stat"><small>اولین EMA</small><strong>{{ $result['first_ready_time'] ?: '—' }}</strong></div>
                         <div class="stat"><small>آخرین EMA</small><strong>{{ $result['last_ready_time'] ?: '—' }}</strong></div>
                     </div>
@@ -170,17 +193,30 @@
                     <div class="table-responsive table-wrap">
                         <table class="table table-striped table-hover">
                             <thead>
-                            <tr><th>زمان</th><th>Close</th><th>{{ strtoupper($result['indicator']) }} {{ $result['period'] }}</th></tr>
+                            <tr>
+                                <th>زمان</th>
+                                @if(($result['indicator'] ?? 'ema') === 'macd')
+                                    <th>MACD</th><th>Signal</th><th>Histogram</th>
+                                @else
+                                    <th>Close</th><th>{{ strtoupper($result['indicator']) }} {{ $result['period'] }}</th>
+                                @endif
+                            </tr>
                             </thead>
                             <tbody>
                             @forelse($result['table_points'] as $point)
                                 <tr>
                                     <td>{{ $point['time'] }}</td>
-                                    <td>{{ number_format($point['close'], 2) }}</td>
-                                    <td class="ema-value">{{ number_format($point['ema'], 4) }}</td>
+                                    @if(($result['indicator'] ?? 'ema') === 'macd')
+                                        <td class="ema-value">{{ number_format($point['macd'], 4) }}</td>
+                                        <td>{{ number_format($point['signal'], 4) }}</td>
+                                        <td>{{ number_format($point['histogram'], 4) }}</td>
+                                    @else
+                                        <td>{{ number_format($point['close'], 2) }}</td>
+                                        <td class="ema-value">{{ number_format($point['value'], 4) }}</td>
+                                    @endif
                                 </tr>
                             @empty
-                                <tr><td colspan="3" class="text-center">برای این بازه نقطه‌ی قابل نمایش برای اندیکاتور وجود ندارد.</td></tr>
+                                <tr><td colspan="{{ ($result['indicator'] ?? 'ema') === 'macd' ? 4 : 3 }}" class="text-center">برای این بازه نقطه‌ی قابل نمایش برای اندیکاتور وجود ندارد.</td></tr>
                             @endforelse
                             </tbody>
                         </table>
@@ -197,20 +233,24 @@
 (function () {
     var points = @json($result['chart_points'] ?? []);
     var svg = document.getElementById('ema-chart');
-
     if (!svg || !points.length) return;
 
     var width = 1200, height = 430;
     var pad = {top: 20, right: 20, bottom: 25, left: 20};
-    var values = [];
     var isRsi = @json(($result['indicator'] ?? 'ema') === 'rsi');
+    var isMacd = @json(($result['indicator'] ?? 'ema') === 'macd');
+    var values = [];
 
     points.forEach(function (point) {
         if (isRsi) {
-            if (point.ema !== null) values.push(point.ema);
+            if (point.value !== null) values.push(point.value);
+        } else if (isMacd) {
+            if (point.macd !== null) values.push(point.macd);
+            if (point.signal !== null) values.push(point.signal);
+            if (point.histogram !== null) values.push(point.histogram);
         } else {
             if (point.close !== null) values.push(point.close);
-            if (point.ema !== null) values.push(point.ema);
+            if (point.value !== null) values.push(point.value);
         }
     });
 
@@ -218,16 +258,21 @@
 
     var min = isRsi ? 0 : Math.min.apply(null, values);
     var max = isRsi ? 100 : Math.max.apply(null, values);
+
+    if (isMacd) {
+        var abs = Math.max(Math.abs(min), Math.abs(max), 1);
+        min = -abs;
+        max = abs;
+    }
+
     var range = max - min || 1;
 
     function x(index) {
         return pad.left + (index / Math.max(points.length - 1, 1)) * (width - pad.left - pad.right);
     }
-
     function y(value) {
         return height - pad.bottom - ((value - min) / range) * (height - pad.top - pad.bottom);
     }
-
     function pathFor(key) {
         var path = '';
         points.forEach(function (point, index) {
@@ -251,13 +296,50 @@
         });
     }
 
-    svg.innerHTML =
-        grid + levels +
+    if (isMacd) {
+        levels += '<line class="chart-zero" x1="' + pad.left + '" y1="' + y(0) + '" x2="' + (width - pad.right) + '" y2="' + y(0) + '"></line>';
+        var bars = '';
+        points.forEach(function (point, index) {
+            if (point.histogram === null || point.histogram === undefined) return;
+            var barWidth = Math.max(1, ((width - pad.left - pad.right) / points.length) * 0.7);
+            var barX = x(index) - barWidth / 2;
+            var zeroY = y(0);
+            var barY = point.histogram >= 0 ? y(point.histogram) : zeroY;
+            var barHeight = Math.abs(y(point.histogram) - zeroY);
+            bars += '<rect class="chart-histogram" x="' + barX.toFixed(2) + '" y="' + barY.toFixed(2) + '" width="' + barWidth.toFixed(2) + '" height="' + Math.max(1, barHeight).toFixed(2) + '"></rect>';
+        });
+        svg.innerHTML = grid + levels + bars +
+            '<path class="chart-macd" d="' + pathFor('macd') + '"></path>' +
+            '<path class="chart-signal" d="' + pathFor('signal') + '"></path>';
+        return;
+    }
+
+    svg.innerHTML = grid + levels +
         (isRsi ? '' : '<path class="chart-close" d="' + pathFor('close') + '"></path>') +
-        '<path class="chart-ema" d="' + pathFor('ema') + '"></path>';
+        '<path class="chart-ema" d="' + pathFor('value') + '"></path>';
 })();
 </script>
 @endif
+
+<script>
+(function () {
+    var indicator = document.getElementById('indicator-type');
+    var standard = document.getElementById('standard-period-field');
+    var macdFields = document.querySelectorAll('.macd-field');
+    if (!indicator) return;
+
+    function updateIndicatorFields() {
+        var isMacd = indicator.value === 'macd';
+        if (standard) standard.style.display = isMacd ? 'none' : '';
+        Array.prototype.forEach.call(macdFields, function (field) {
+            field.style.display = isMacd ? '' : 'none';
+        });
+    }
+
+    indicator.addEventListener('change', updateIndicatorFields);
+    updateIndicatorFields();
+})();
+</script>
 
 <script>
 (function () {
