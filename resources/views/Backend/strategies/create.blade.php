@@ -200,10 +200,16 @@
 @endsection
 
 @section('scripts')
-<script>
-    window.strategyInitialRules = @json(
-        $strategy
-            ? $strategy->rules->sortBy(['type', 'sort_order'])->values()->map(function ($rule) {
+@php
+    $initialRules = [];
+
+    if ($strategy) {
+        $initialRules = $strategy->rules
+            ->sortBy(function ($rule) {
+                return sprintf('%s-%06d', $rule->type, $rule->sort_order);
+            })
+            ->values()
+            ->map(function ($rule) {
                 return [
                     'type' => $rule->type,
                     'indicator' => $rule->indicator,
@@ -215,8 +221,12 @@
                     'sort_order' => $rule->sort_order,
                 ];
             })
-            : []
-    );
+            ->all();
+    }
+@endphp
+
+<script>
+    window.strategyInitialRules = @json($initialRules);
 </script>
 <script src="{{ asset('js/strategy-builder.js') }}"></script>
 @endsection
