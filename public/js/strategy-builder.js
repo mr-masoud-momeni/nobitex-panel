@@ -282,4 +282,69 @@ document.addEventListener('DOMContentLoaded', function () {
 
         row.remove();
     });
+
+    function setParameterValues(container, values) {
+        Object.keys(values || {}).forEach(function (key) {
+            var input = container.querySelector('input[name*="[' + key + ']"]');
+            if (input) {
+                input.value = values[key];
+            }
+        });
+    }
+
+    function restoreInitialRules() {
+        if (!Array.isArray(window.strategyInitialRules) || !window.strategyInitialRules.length) {
+            return;
+        }
+
+        window.strategyInitialRules.forEach(function (rule) {
+            addRule(rule.type);
+
+            var container = document.getElementById(rule.type + '-rules');
+            var rows = container.querySelectorAll('.strategy-rule-row');
+            var row = rows[rows.length - 1];
+
+            if (!row) {
+                return;
+            }
+
+            var indicator = row.querySelector('.rule-indicator');
+            indicator.value = rule.indicator;
+            refreshSourceIndicator(row);
+
+            setParameterValues(row.querySelector('.rule-parameters'), rule.parameters || {});
+
+            var operator = row.querySelector('.rule-operator');
+            operator.value = rule.operator;
+
+            var valueType = row.querySelector('.rule-value-type');
+            valueType.value = rule.value_type || 'number';
+            refreshComparisonValue(row);
+
+            if (rule.value_type === 'indicator' && rule.value && typeof rule.value === 'object') {
+                var valueIndicator = row.querySelector('.rule-value-indicator');
+
+                if (valueIndicator && rule.value.indicator) {
+                    valueIndicator.value = rule.value.indicator;
+                    refreshValueIndicator(row);
+                    setParameterValues(
+                        row.querySelector('.rule-value-parameters'),
+                        rule.value.parameters || {}
+                    );
+                }
+            } else if (rule.value !== null && rule.value !== undefined) {
+                var valueInput = row.querySelector('.rule-value input');
+                if (valueInput) {
+                    valueInput.value = rule.value;
+                }
+            }
+
+            var logicals = container.querySelectorAll('.rule-logical select');
+            if (logicals.length && rule.logical_operator) {
+                logicals[logicals.length - 1].value = rule.logical_operator;
+            }
+        });
+    }
+
+    restoreInitialRules();
 });
