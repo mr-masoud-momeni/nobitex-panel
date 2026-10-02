@@ -10,6 +10,7 @@ use App\Services\Trading\Indicators\Rsi;
 use App\Services\Trading\Markets\NobitexMarket;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use IntlDateFormatter;
 use RuntimeException;
 
 class IndicatorLabController extends Controller
@@ -28,9 +29,13 @@ class IndicatorLabController extends Controller
     {
         $markets = $this->markets();
 
+        $today = Carbon::now('Asia/Tehran');
+
         return view('Backend.indicators.index', [
             'markets' => $markets,
             'result' => null,
+            'default_start_date' => $today->copy()->subMonth()->format('Y-m-d\\TH:i'),
+            'default_end_date' => $today->format('Y-m-d\\TH:i'),
         ]);
     }
 
@@ -133,9 +138,9 @@ class IndicatorLabController extends Controller
 
             $points[] = [
                 'timestamp' => (int) $candle->timestamp,
-                'time' => Carbon::createFromTimestampUTC((int) $candle->timestamp)
-                    ->setTimezone('Asia/Tehran')
-                    ->format('Y-m-d H:i'),
+                'time' => $this->formatPersianDate(
+                    Carbon::createFromTimestampUTC((int) $candle->timestamp)->setTimezone('Asia/Tehran')
+                ),
                 'close' => (float) $candle->close,
                 'ema' => $value,
             ];
@@ -185,7 +190,23 @@ class IndicatorLabController extends Controller
         return view('Backend.indicators.index', [
             'markets' => $this->markets(),
             'result' => $result,
+            'default_start_date' => $start->format('Y-m-d\\TH:i'),
+            'default_end_date' => $end->format('Y-m-d\\TH:i'),
         ]);
+    }
+
+    private function formatPersianDate(Carbon $date): string
+    {
+        $formatter = new IntlDateFormatter(
+            'fa_IR@calendar=persian',
+            IntlDateFormatter::NONE,
+            IntlDateFormatter::NONE,
+            'Asia/Tehran',
+            IntlDateFormatter::TRADITIONAL,
+            'yyyy/MM/dd HH:mm'
+        );
+
+        return $formatter->format($date->getTimestamp());
     }
 
     private function markets()
