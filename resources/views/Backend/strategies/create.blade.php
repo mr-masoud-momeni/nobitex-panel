@@ -7,21 +7,21 @@
 
         <div class="panel panel-default">
             <div class="panel-heading">
-                <h3>ایجاد استراتژی معاملاتی</h3>
+                <h3>{{ $strategy ? 'ویرایش استراتژی معاملاتی' : 'ایجاد استراتژی معاملاتی' }}</h3>
             </div>
 
             <div class="panel-body">
-                <form action="{{ route('strategy.store') }}" method="post">
+                <form action="{{ $strategy ? route('strategy.update', $strategy) : route('strategy.store') }}" method="post">
                     @csrf
 
                     <div class="form-group">
                         <label>نام استراتژی</label>
-                        <input type="text" name="name" class="form-control" required>
+                        <input type="text" name="name" class="form-control" value="{{ old('name', $strategy->name ?? '') }}" required>
                     </div>
 
                     <div class="form-group">
                         <label>توضیحات</label>
-                        <textarea name="description" class="form-control" rows="3"></textarea>
+                        <textarea name="description" class="form-control" rows="3">{{ old('description', $strategy->description ?? '') }}</textarea>
                     </div>
 
                     <div class="panel panel-default strategy-rules-panel">
@@ -52,28 +52,28 @@
                             <div class="row">
                                 <div class="col-md-4">
                                     <label>ریسک هر معامله (%)</label>
-                                    <input type="number" name="risk_percent" class="form-control" step="0.001" min="0" max="100">
+                                    <input type="number" name="risk_percent" class="form-control" step="0.001" min="0" max="100" value="{{ old('risk_percent', $strategy->risk_percent ?? '') }}">
                                 </div>
                                 <div class="col-md-4">
                                     <label>حد ضرر (%)</label>
-                                    <input type="number" name="stop_loss" class="form-control" step="0.001" min="0" max="100">
+                                    <input type="number" name="stop_loss" class="form-control" step="0.001" min="0" max="100" value="{{ old('stop_loss', $strategy->stop_loss ?? '') }}">
                                 </div>
                                 <div class="col-md-4">
                                     <label>حد سود</label>
-                                    <input type="number" name="take_profit" class="form-control" step="0.001" min="0">
+                                    <input type="number" name="take_profit" class="form-control" step="0.001" min="0" value="{{ old('take_profit', $strategy->take_profit ?? '') }}">
                                 </div>
                             </div>
 
                             <div style="margin-top: 15px;">
                                 <label>
-                                    <input type="checkbox" name="is_active" value="1" checked>
+                                    <input type="checkbox" name="is_active" value="1" {{ old('is_active', $strategy ? $strategy->is_active : true) ? 'checked' : '' }}>
                                     فعال
                                 </label>
                             </div>
                         </div>
                     </div>
 
-                    <button type="submit" class="btn btn-success">ذخیره استراتژی</button>
+                    <button type="submit" class="btn btn-success">{{ $strategy ? 'ذخیره تغییرات' : 'ذخیره استراتژی' }}</button>
                     <a href="{{ route('strategy.index') }}" class="btn btn-default">انصراف</a>
                 </form>
             </div>
@@ -200,5 +200,23 @@
 @endsection
 
 @section('scripts')
+<script>
+    window.strategyInitialRules = @json(
+        $strategy
+            ? $strategy->rules->sortBy(['type', 'sort_order'])->values()->map(function ($rule) {
+                return [
+                    'type' => $rule->type,
+                    'indicator' => $rule->indicator,
+                    'parameters' => $rule->parameters ?? [],
+                    'operator' => $rule->operator,
+                    'value_type' => $rule->value_type,
+                    'value' => $rule->value,
+                    'logical_operator' => $rule->logical_operator,
+                    'sort_order' => $rule->sort_order,
+                ];
+            })
+            : []
+    );
+</script>
 <script src="{{ asset('js/strategy-builder.js') }}"></script>
 @endsection
