@@ -2,133 +2,29 @@
 
 @section('content')
 <style>
-    .indicator-lab .panel {
-        border-radius: 4px;
-    }
-
-    .indicator-lab .lab-header {
-        margin-bottom: 20px;
-    }
-
-    .indicator-lab .lab-header h2 {
-        margin: 0 0 7px;
-        font-size: 24px;
-    }
-
-    .indicator-lab .lab-header p {
-        margin: 0;
-        color: #777;
-    }
-
-    .indicator-lab .field-label {
-        display: block;
-        margin-bottom: 7px;
-        font-weight: 600;
-    }
-
-    .indicator-lab .form-control {
-        height: 38px;
-    }
-
-    .indicator-lab .chart-panel {
-        margin-top: 20px;
-    }
-
-    .indicator-lab .chart-wrap {
-        position: relative;
-        width: 100%;
-        height: 430px;
-        overflow: hidden;
-        background: #fff;
-        border: 1px solid #eee;
-    }
-
-    .indicator-lab .chart-svg {
-        display: block;
-        width: 100%;
-        height: 100%;
-    }
-
-    .indicator-lab .chart-axis {
-        stroke: #ddd;
-        stroke-width: 1;
-    }
-
-    .indicator-lab .chart-close {
-        fill: none;
-        stroke: #777;
-        stroke-width: 1.5;
-        vector-effect: non-scaling-stroke;
-    }
-
-    .indicator-lab .chart-ema {
-        fill: none;
-        stroke: #c79a3b;
-        stroke-width: 2.5;
-        vector-effect: non-scaling-stroke;
-    }
-
-    .indicator-lab .chart-legend {
-        margin-top: 10px;
-        color: #666;
-    }
-
-    .indicator-lab .legend-item {
-        display: inline-block;
-        margin-left: 18px;
-    }
-
-    .indicator-lab .legend-line {
-        display: inline-block;
-        width: 24px;
-        height: 2px;
-        vertical-align: middle;
-        margin-left: 6px;
-        background: #777;
-    }
-
-    .indicator-lab .legend-line.ema {
-        height: 3px;
-        background: #c79a3b;
-    }
-
-    .indicator-lab .stats {
-        margin-top: 15px;
-    }
-
-    .indicator-lab .stat {
-        display: inline-block;
-        min-width: 150px;
-        padding: 12px 16px;
-        margin-left: 10px;
-        margin-bottom: 10px;
-        border: 1px solid #eee;
-        background: #fafafa;
-    }
-
-    .indicator-lab .stat small {
-        display: block;
-        color: #888;
-        margin-bottom: 4px;
-    }
-
-    .indicator-lab .table-wrap {
-        max-height: 500px;
-        overflow: auto;
-    }
-
-    .indicator-lab table {
-        margin-bottom: 0;
-    }
-
-    .indicator-lab .ema-value {
-        font-weight: 600;
-    }
-
-    .indicator-lab .muted-note {
-        color: #888;
-        margin-top: 8px;
-    }
+    .indicator-lab .panel { border-radius: 4px; }
+    .indicator-lab .lab-header { margin-bottom: 20px; }
+    .indicator-lab .lab-header h2 { margin: 0 0 7px; font-size: 24px; }
+    .indicator-lab .lab-header p { margin: 0; color: #777; }
+    .indicator-lab .field-label { display: block; margin-bottom: 7px; font-weight: 600; }
+    .indicator-lab .form-control { height: 38px; }
+    .indicator-lab .chart-panel { margin-top: 20px; }
+    .indicator-lab .chart-wrap { position: relative; width: 100%; height: 430px; overflow: hidden; background: #fff; border: 1px solid #eee; }
+    .indicator-lab .chart-svg { display: block; width: 100%; height: 100%; }
+    .indicator-lab .chart-axis { stroke: #ddd; stroke-width: 1; }
+    .indicator-lab .chart-close { fill: none; stroke: #777; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+    .indicator-lab .chart-ema { fill: none; stroke: #c79a3b; stroke-width: 2.5; vector-effect: non-scaling-stroke; }
+    .indicator-lab .chart-legend { margin-top: 10px; color: #666; }
+    .indicator-lab .legend-item { display: inline-block; margin-left: 18px; }
+    .indicator-lab .legend-line { display: inline-block; width: 24px; height: 2px; vertical-align: middle; margin-left: 6px; background: #777; }
+    .indicator-lab .legend-line.ema { height: 3px; background: #c79a3b; }
+    .indicator-lab .stats { margin-top: 15px; }
+    .indicator-lab .stat { display: inline-block; min-width: 150px; padding: 12px 16px; margin-left: 10px; margin-bottom: 10px; border: 1px solid #eee; background: #fafafa; }
+    .indicator-lab .stat small { display: block; color: #888; margin-bottom: 4px; }
+    .indicator-lab .table-wrap { max-height: 500px; overflow: auto; }
+    .indicator-lab table { margin-bottom: 0; }
+    .indicator-lab .ema-value { font-weight: 600; }
+    .indicator-lab .muted-note { color: #888; margin-top: 8px; }
 </style>
 
 <div class="row indicator-lab">
@@ -141,9 +37,7 @@
         </div>
 
         <div class="panel panel-default">
-            <div class="panel-heading">
-                <strong>تنظیم تست</strong>
-            </div>
+            <div class="panel-heading"><strong>تنظیم تست</strong></div>
 
             <div class="panel-body">
                 <form method="post" action="{{ route('indicator-lab.test') }}">
@@ -202,13 +96,6 @@
                                 @endforeach
                             </select>
                         </div>
-
-                        <div class="col-md-2">
-                            <label class="field-label">بازه</label>
-                            <input type="text" class="form-control"
-                                   value="{{ $result ? $result['start_date'].' تا '.$result['end_date'] : 'انتخاب نشده' }}"
-                                   readonly>
-                        </div>
                     </div>
 
                     <div class="row" style="margin-top:15px;">
@@ -225,9 +112,7 @@
                         </div>
 
                         <div class="col-md-4" style="padding-top:24px;">
-                            <button type="submit" class="btn btn-success">
-                                ▶ اجرای EMA
-                            </button>
+                            <button type="submit" class="btn btn-success">▶ اجرای EMA</button>
                         </div>
                     </div>
                 </form>
@@ -238,9 +123,7 @@
             <div class="panel panel-default chart-panel">
                 <div class="panel-heading clearfix">
                     <strong>نتیجه EMA {{ $result['period'] }}</strong>
-                    <span class="pull-left">
-                        {{ $result['symbol'] }} / {{ $result['timeframe'] }}
-                    </span>
+                    <span class="pull-left">{{ $result['symbol'] }} / {{ $result['timeframe'] }}</span>
                 </div>
 
                 <div class="panel-body">
@@ -254,22 +137,12 @@
                     </div>
 
                     <div class="stats">
-                        <div class="stat">
-                            <small>تعداد کندل</small>
-                            <strong>{{ number_format($result['candle_count']) }}</strong>
-                        </div>
-                        <div class="stat">
-                            <small>کندل دارای EMA</small>
-                            <strong>{{ number_format($result['ready_count']) }}</strong>
-                        </div>
-                        <div class="stat">
-                            <small>اولین EMA</small>
-                            <strong>{{ $result['first_ready_time'] ?: '—' }}</strong>
-                        </div>
-                        <div class="stat">
-                            <small>آخرین EMA</small>
-                            <strong>{{ $result['last_ready_time'] ?: '—' }}</strong>
-                        </div>
+                        <div class="stat"><small>کندل‌های Warm-up</small><strong>{{ number_format($result['warmup_count']) }}</strong></div>
+                        <div class="stat"><small>کل کندل‌های محاسبات</small><strong>{{ number_format($result['candle_count']) }}</strong></div>
+                        <div class="stat"><small>کندل‌های خروجی</small><strong>{{ number_format($result['displayed_count']) }}</strong></div>
+                        <div class="stat"><small>کندل دارای EMA</small><strong>{{ number_format($result['ready_count']) }}</strong></div>
+                        <div class="stat"><small>اولین EMA</small><strong>{{ $result['first_ready_time'] ?: '—' }}</strong></div>
+                        <div class="stat"><small>آخرین EMA</small><strong>{{ $result['last_ready_time'] ?: '—' }}</strong></div>
                     </div>
                 </div>
             </div>
@@ -284,24 +157,22 @@
                     <div class="table-responsive table-wrap">
                         <table class="table table-striped table-hover">
                             <thead>
-                            <tr>
-                                <th>زمان</th>
-                                <th>Close</th>
-                                <th>EMA {{ $result['period'] }}</th>
-                            </tr>
+                            <tr><th>زمان</th><th>Close</th><th>EMA {{ $result['period'] }}</th></tr>
                             </thead>
                             <tbody>
-                            @foreach($result['table_points'] as $point)
+                            @forelse($result['table_points'] as $point)
                                 <tr>
                                     <td>{{ $point['time'] }}</td>
                                     <td>{{ number_format($point['close'], 2) }}</td>
                                     <td class="ema-value">{{ number_format($point['ema'], 2) }}</td>
                                 </tr>
-                            @endforeach
+                            @empty
+                                <tr><td colspan="3" class="text-center">برای این بازه نقطه‌ی قابل نمایش برای EMA وجود ندارد.</td></tr>
+                            @endforelse
                             </tbody>
                         </table>
                     </div>
-                    <p class="muted-note">برای نمایش خواناتر، جدول ۲۰۰ کندل آخر را نشان می‌دهد؛ نمودار بر اساس تمام نقاط دارای EMA ساخته شده است.</p>
+                    <p class="muted-note">Warm-up در محاسبه EMA استفاده می‌شود ولی در نمودار و جدول نمایش داده نمی‌شود.</p>
                 </div>
             </div>
         @endif
@@ -311,24 +182,21 @@
 @if($result)
 <script>
 (function () {
-    var points = @json($result['chart_points']);
+    var points = @json($result['chart_points'] ?? []);
     var svg = document.getElementById('ema-chart');
 
-    if (!svg || !points.length) {
-        return;
-    }
+    if (!svg || !points.length) return;
 
-    var width = 1200;
-    var height = 430;
+    var width = 1200, height = 430;
     var pad = {top: 20, right: 20, bottom: 25, left: 20};
-
     var values = [];
+
     points.forEach(function (point) {
-        values.push(point.close);
-        if (point.ema !== null) {
-            values.push(point.ema);
-        }
+        if (point.close !== null) values.push(point.close);
+        if (point.ema !== null) values.push(point.ema);
     });
+
+    if (!values.length) return;
 
     var min = Math.min.apply(null, values);
     var max = Math.max.apply(null, values);
@@ -346,11 +214,7 @@
         var path = '';
         points.forEach(function (point, index) {
             var value = point[key];
-
-            if (value === null) {
-                return;
-            }
-
+            if (value === null || value === undefined) return;
             path += (path ? ' L ' : 'M ') + x(index).toFixed(2) + ' ' + y(value).toFixed(2);
         });
         return path;
@@ -374,10 +238,7 @@
 (function () {
     var market = document.getElementById('indicator-market');
     var symbol = document.getElementById('indicator-symbol');
-
-    if (!market || !symbol) {
-        return;
-    }
+    if (!market || !symbol) return;
 
     function filterSymbols() {
         var selectedMarket = market.value;
@@ -386,17 +247,12 @@
         Array.prototype.forEach.call(symbol.options, function (option) {
             var visible = option.getAttribute('data-market') === selectedMarket;
             option.hidden = !visible;
-
-            if (visible && !firstVisible) {
-                firstVisible = option;
-            }
+            if (visible && !firstVisible) firstVisible = option;
         });
 
         if (!symbol.selectedOptions.length ||
             symbol.selectedOptions[0].getAttribute('data-market') !== selectedMarket) {
-            if (firstVisible) {
-                symbol.value = firstVisible.value;
-            }
+            if (firstVisible) symbol.value = firstVisible.value;
         }
     }
 
