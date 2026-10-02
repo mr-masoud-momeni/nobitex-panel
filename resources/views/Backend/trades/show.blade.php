@@ -26,15 +26,23 @@
                 </div>
                 <hr>
                 <div class="row">
-                    <div class="col-md-4"><strong>نتیجه:</strong>
-                        @if($trade->result_percent !== null)
-                            {{ $trade->result_percent }}%
+                    <div class="col-md-3"><strong>سود/زیان:</strong>
+                        @if($trade->result_amount !== null)
+                            {{ number_format($trade->result_amount, 2) }}
                         @else
-                            هنوز نتیجه‌ای ثبت نشده است.
+                            —
                         @endif
                     </div>
-                    <div class="col-md-4"><strong>تعداد معاملات:</strong> {{ $trade->total_trades ?? '—' }}</div>
-                    <div class="col-md-4"><strong>معاملات سودده:</strong> {{ $trade->winning_trades ?? '—' }}</div>
+                    <div class="col-md-3"><strong>درصد نتیجه:</strong>
+                        @if($trade->result_percent !== null)
+                            {{ number_format($trade->result_percent, 2) }}%
+                        @else
+                            —
+                        @endif
+                    </div>
+                    <div class="col-md-2"><strong>معاملات:</strong> {{ $trade->total_trades ?? '—' }}</div>
+                    <div class="col-md-2"><strong>سودده:</strong> {{ $trade->winning_trades ?? '—' }}</div>
+                    <div class="col-md-2"><strong>زیان‌ده:</strong> {{ $trade->losing_trades ?? '—' }}</div>
                 </div>
 
                 <hr>
