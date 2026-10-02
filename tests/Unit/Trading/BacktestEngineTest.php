@@ -47,12 +47,13 @@ class BacktestEngineTest extends TestCase
             'initial_capital' => 1000,
             'fee_percent' => 0,
         ]);
-        $trade->start_date = Carbon::createFromTimestamp(2000, 'UTC');
+        $start = Carbon::create(2025, 1, 1, 0, 0, 0, 'UTC');
+        $trade->start_date = $start;
 
         $candles = [
-            $this->candle(1000, 120),
-            $this->candle(2000, 110),
-            $this->candle(3000, 90),
+            $this->candle($start->copy()->subHour()->timestamp, 120),
+            $this->candle($start->timestamp, 110),
+            $this->candle($start->copy()->addHour()->timestamp, 90),
         ];
 
         $result = (new BacktestEngine())->run($strategy, $trade, $candles);
