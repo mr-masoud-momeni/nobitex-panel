@@ -35,6 +35,9 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->group(function () {
     Route::get('/strategy/create', 'App\\Http\\Controllers\\admin\\StrategyController@create')->name('strategy.create');
     Route::post('/strategy', 'App\\Http\\Controllers\\admin\\StrategyController@store')->name('strategy.store');
 
+    Route::get('/indicator-lab', 'App\\Http\\Controllers\\admin\\IndicatorLabController@index')->name('indicator-lab.index');
+    Route::post('/indicator-lab/test', 'App\\Http\\Controllers\\admin\\IndicatorLabController@test')->name('indicator-lab.test');
+
     Route::get('/trade', 'App\\Http\\Controllers\\admin\\TradeController@index')->name('trade.index');
     Route::get('/trade/create', 'App\\Http\\Controllers\\admin\\TradeController@create')->name('trade.create');
     Route::post('/trade', 'App\\Http\\Controllers\\admin\\TradeController@store')->name('trade.store');

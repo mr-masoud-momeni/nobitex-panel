@@ -28,6 +28,10 @@
             <a href="{{ route('trade.index') }}">معاملات</a>
         </li>
 
+        <li class="{{ Request::is('admin/indicator-lab*') ? 'active' : '' }}">
+            <a href="{{ route('indicator-lab.index') }}">آزمایشگاه اندیکاتورها</a>
+        </li>
+
         <li class="dropdown {{ Request::is('admin/email*') ? 'open' : '' }}">
             <a href="#" class="dropdown-toggle" data-toggle="dropdown">اطلاع‌رسانی<span class="caret"></span></a>
             <ul class="dropdown-menu" role="menu">
