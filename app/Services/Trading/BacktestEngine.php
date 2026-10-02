@@ -30,6 +30,7 @@ class BacktestEngine
         $entryPrice = null;
         $entryValue = null;
         $previousValues = [];
+        $valueHistory = [];
         $totalTrades = 0;
         $winningTrades = 0;
         $losingTrades = 0;
@@ -63,6 +64,13 @@ class BacktestEngine
             }
 
             if ((int) $candle->timestamp < $startTimestamp) {
+                foreach ($values as $key => $value) {
+                    if ($value === null) {
+                        continue;
+                    }
+                    $valueHistory[$key] = $valueHistory[$key] ?? [];
+                    $valueHistory[$key][] = (float) $value;
+                }
                 $previousValues = $values;
                 continue;
             }
@@ -76,7 +84,7 @@ class BacktestEngine
                     $exitReason = 'stop_loss_or_take_profit';
                 }
 
-                if ($exitPrice === null && !$exitRules->isEmpty() && $this->evaluateRules($exitRules, $values, $previousValues)) {
+                if ($exitPrice === null && !$exitRules->isEmpty() && $this->evaluateRules($exitRules, $values, $previousValues, $valueHistory)) {
                     $exitPrice = $close;
                     $exitReason = 'exit_rule';
                 }
@@ -109,7 +117,7 @@ class BacktestEngine
                 }
             }
 
-            if ($quantity <= 0 && $this->evaluateRules($entryRules, $values, $previousValues)) {
+            if ($quantity <= 0 && $this->evaluateRules($entryRules, $values, $previousValues, $valueHistory)) {
                 $feeRate = max(0.0, (float) ($trade->fee_percent ?? 0)) / 100;
                 $notional = $this->positionNotional(
                     $cash,
@@ -125,6 +133,15 @@ class BacktestEngine
                     $entryPrice = $close;
                     $entryTimestamp = (int) $candle->timestamp;
                 }
+            }
+
+            foreach ($values as $key => $value) {
+                if ($value === null) {
+                    continue;
+                }
+
+                $valueHistory[$key] = $valueHistory[$key] ?? [];
+                $valueHistory[$key][] = (float) $value;
             }
 
             $previousValues = $values;
@@ -247,7 +264,7 @@ class BacktestEngine
         return $name;
     }
 
-    private function evaluateRules($rules, array $values, array $previousValues): bool
+    private function evaluateRules($rules, array $values, array $previousValues, array $valueHistory = []): bool
     {
         if ($rules->isEmpty()) {
             return false;
@@ -256,7 +273,7 @@ class BacktestEngine
         $result = null;
 
         foreach ($rules as $rule) {
-            $condition = $this->evaluateRule($rule, $values, $previousValues);
+            $condition = $this->evaluateRule($rule, $values, $previousValues, $valueHistory);
 
             if ($result === null) {
                 $result = $condition;
@@ -274,7 +291,8 @@ class BacktestEngine
     private function evaluateRule(
         StrategyRule $rule,
         array $values,
-        array $previousValues
+        array $previousValues,
+        array $valueHistory = []
     ): bool {
         $sourceKey = $this->indicatorKey($rule->indicator, $rule->parameters ?: []);
         $source = $this->valueForKey($rule->indicator, $sourceKey, $values);
@@ -299,6 +317,26 @@ class BacktestEngine
 
         if ($target === null) {
             return false;
+        }
+
+        if ($rule->operator === 'slope_>' || $rule->operator === 'slope_<') {
+            $lookback = max(1, (int) (($rule->parameters ?: [])['lookback'] ?? 5));
+            $history = $valueHistory[$sourceKey] ?? [];
+
+            if (count($history) < $lookback) {
+                return false;
+            }
+
+            $past = (float) $history[count($history) - $lookback];
+            if (abs($past) < 0.0000000001) {
+                return false;
+            }
+
+            $slopePercent = (($source - $past) / abs($past)) * 100;
+
+            return $rule->operator === 'slope_>'
+                ? $slopePercent > $target
+                : $slopePercent < $target;
         }
 
         switch ($rule->operator) {
