@@ -29,6 +29,15 @@ class IndicatorWarmup
         return max(1000, ($maxPeriod * 50) + $maxLookback);
     }
 
+    private function lookback($parameters): int
+    {
+        if (!is_array($parameters) || !isset($parameters['lookback']) || !is_numeric($parameters['lookback'])) {
+            return 1;
+        }
+
+        return max(1, (int) $parameters['lookback']);
+    }
+
     private function maxPeriod($parameters): int
     {
         if (!is_array($parameters)) {
