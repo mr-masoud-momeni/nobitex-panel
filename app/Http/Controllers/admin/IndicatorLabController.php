@@ -40,6 +40,7 @@ class IndicatorLabController extends Controller
             'market_symbol_id' => ['required', 'exists:market_symbols,id'],
             'timeframe' => ['required', 'string', 'max:20'],
             'period' => ['required', 'integer', 'min:1', 'max:1000'],
+            'warmup_candles' => ['required', 'integer', 'min:1', 'max:100000'],
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
         ]);
@@ -67,7 +68,7 @@ class IndicatorLabController extends Controller
 
         // EMA needs historical candles before the visible range to establish its state.
         // Keep this consistent with the strategy warm-up policy.
-        $warmupCandles = max(1000, ((int) $data['period']) * 50);
+        $warmupCandles = (int) $data['warmup_candles'];
         $calculationStart = $this->subtractCandles(
             $start,
             $data['timeframe'],
@@ -160,6 +161,7 @@ class IndicatorLabController extends Controller
             'raw_symbol' => $symbol->symbol,
             'timeframe' => $data['timeframe'],
             'period' => (int) $data['period'],
+            'warmup_setting' => $warmupCandles,
             'start_date' => $start->format('Y-m-d H:i'),
             'end_date' => $end->format('Y-m-d H:i'),
             'calculation_start' => $calculationStart->format('Y-m-d H:i'),
