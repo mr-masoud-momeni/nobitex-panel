@@ -139,6 +139,7 @@ class TradeController extends Controller
                 'started_at',
                 'stopped_at',
                 'completed_at',
+                'backtest_log',
             ]);
 
             $copy->status = 'draft';
@@ -150,6 +151,7 @@ class TradeController extends Controller
             $copy->started_at = null;
             $copy->stopped_at = null;
             $copy->completed_at = null;
+            $copy->backtest_log = null;
             $copy->save();
 
             return $copy;
