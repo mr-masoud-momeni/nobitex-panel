@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', function () {
             label: 'قیمت',
             parameters: [],
             compareWith: ['price', 'ema', 'sma'],
-            operators: ['>', '<', '>=', '<=', '=', 'crosses_above', 'crosses_below']
+            operators: ['>', '<', '>=', '<=', '=', 'crosses_above', 'crosses_below', 'breaks_above_without_touch', 'breaks_below_without_touch']
         },
         ema: {
             label: 'EMA',
@@ -47,7 +47,9 @@ document.addEventListener('DOMContentLoaded', function () {
         '<=': 'کوچک‌تر یا مساوی',
         '=': 'مساوی',
         'crosses_above': 'عبور رو به بالا از',
-        'crosses_below': 'عبور رو به پایین از'
+        'crosses_below': 'عبور رو به پایین از',
+        'breaks_above_without_touch': 'شکست کامل رو به بالا بدون برخورد',
+        'breaks_below_without_touch': 'شکست کامل رو به پایین بدون برخورد'
     };
 
     function escapeHtml(value) {
