@@ -49,6 +49,8 @@ class BacktestEngine
 
             $values = [
                 'price' => $close,
+                'high' => $high,
+                'low' => $low,
                 'volume' => $volume,
             ];
 
@@ -324,6 +326,28 @@ class BacktestEngine
                     $previousValues[$sourceKey] ?? null,
                     $previousTarget
                 );
+            case 'breaks_above_without_touch':
+                if ($rule->indicator !== 'price') {
+                    return false;
+                }
+
+                return $this->breaksAboveWithoutTouch(
+                    $low = (float) ($values['low'] ?? 0),
+                    $target,
+                    isset($previousValues['low']) ? (float) $previousValues['low'] : null,
+                    $previousTarget
+                );
+            case 'breaks_below_without_touch':
+                if ($rule->indicator !== 'price') {
+                    return false;
+                }
+
+                return $this->breaksBelowWithoutTouch(
+                    $high = (float) ($values['high'] ?? 0),
+                    $target,
+                    isset($previousValues['high']) ? (float) $previousValues['high'] : null,
+                    $previousTarget
+                );
             default:
                 return false;
         }
@@ -370,6 +394,32 @@ class BacktestEngine
         }
 
         return $previousSource >= $previousTarget && $source < $target;
+    }
+
+    private function breaksAboveWithoutTouch(
+        float $low,
+        float $target,
+        ?float $previousLow,
+        ?float $previousTarget
+    ): bool {
+        if ($previousLow === null || $previousTarget === null) {
+            return false;
+        }
+
+        return $previousLow <= $previousTarget && $low > $target;
+    }
+
+    private function breaksBelowWithoutTouch(
+        float $high,
+        float $target,
+        ?float $previousHigh,
+        ?float $previousTarget
+    ): bool {
+        if ($previousHigh === null || $previousTarget === null) {
+            return false;
+        }
+
+        return $previousHigh >= $previousTarget && $high < $target;
     }
 
     private function exitPriceFromRisk(
