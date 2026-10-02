@@ -37,6 +37,7 @@ class Trade extends Model
         'started_at' => 'datetime',
         'stopped_at' => 'datetime',
         'completed_at' => 'datetime',
+        'backtest_log' => 'array',
     ];
 
     public function strategy()
