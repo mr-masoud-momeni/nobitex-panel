@@ -135,6 +135,8 @@
         </div>
     </div>
 </div>
+@endsection
+
 @section('HeaderLinks')
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/persian-datepicker@1.2.0/dist/css/persian-datepicker.min.css">
 @endsection
