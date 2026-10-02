@@ -75,4 +75,37 @@ class StrategyController extends Controller
             ->route('strategy.index')
             ->with('success', 'استراتژی با موفقیت ایجاد شد.');
     }
+
+    public function duplicate(Strategy $strategy)
+    {
+        $strategy->load('rules');
+
+        DB::transaction(function () use ($strategy) {
+            $copy = Strategy::create([
+                'name' => $strategy->name . ' - کپی',
+                'description' => $strategy->description,
+                'risk_percent' => $strategy->risk_percent,
+                'stop_loss' => $strategy->stop_loss,
+                'take_profit' => $strategy->take_profit,
+                'is_active' => $strategy->is_active,
+            ]);
+
+            foreach ($strategy->rules as $rule) {
+                $copy->rules()->create([
+                    'type' => $rule->type,
+                    'indicator' => $rule->indicator,
+                    'parameters' => $rule->parameters,
+                    'operator' => $rule->operator,
+                    'value_type' => $rule->value_type,
+                    'value' => $rule->value,
+                    'logical_operator' => $rule->logical_operator,
+                    'sort_order' => $rule->sort_order,
+                ]);
+            }
+        });
+
+        return redirect()
+            ->route('strategy.index')
+            ->with('success', 'استراتژی با موفقیت داپلیکیت شد.');
+    }
 }
