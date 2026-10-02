@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Market;
 use App\Models\MarketCandle;
 use App\Services\Trading\Indicators\Ema;
+use App\Services\Trading\Indicators\Macd;
 use App\Services\Trading\Indicators\Rsi;
 use App\Services\Trading\Markets\NobitexMarket;
 use Carbon\Carbon;
@@ -27,7 +28,6 @@ class IndicatorLabController extends Controller
     public function index()
     {
         $markets = $this->markets();
-
         $today = Carbon::now('Asia/Tehran');
 
         return view('Backend.indicators.index', [
@@ -44,8 +44,11 @@ class IndicatorLabController extends Controller
             'market_id' => ['required', 'exists:markets,id'],
             'market_symbol_id' => ['required', 'exists:market_symbols,id'],
             'timeframe' => ['required', 'string', 'max:20'],
-            'indicator' => ['required', 'in:ema,rsi'],
+            'indicator' => ['required', 'in:ema,rsi,macd'],
             'period' => ['required', 'integer', 'min:1', 'max:1000'],
+            'macd_fast' => ['nullable', 'integer', 'min:1', 'max:1000'],
+            'macd_slow' => ['nullable', 'integer', 'min:2', 'max:1000'],
+            'macd_signal' => ['nullable', 'integer', 'min:1', 'max:1000'],
             'warmup_candles' => ['required', 'integer', 'min:1', 'max:100000'],
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
@@ -55,6 +58,22 @@ class IndicatorLabController extends Controller
             return back()
                 ->withInput()
                 ->withErrors(['timeframe' => 'تایم‌فریم انتخاب‌شده پشتیبانی نمی‌شود.']);
+        }
+
+        if ($data['indicator'] === 'macd') {
+            $fast = (int) ($data['macd_fast'] ?? 12);
+            $slow = (int) ($data['macd_slow'] ?? 26);
+            $signal = (int) ($data['macd_signal'] ?? 9);
+
+            if ($fast >= $slow) {
+                return back()
+                    ->withInput()
+                    ->withErrors(['macd_slow' => 'Period سریع MACD باید از Period کند کمتر باشد.']);
+            }
+        } else {
+            $fast = 12;
+            $slow = 26;
+            $signal = 9;
         }
 
         $market = Market::with(['symbols' => function ($query) use ($data) {
@@ -118,15 +137,38 @@ class IndicatorLabController extends Controller
                 ->withErrors(['start_date' => 'برای این نماد، تایم‌فریم و بازه انتخاب‌شده هیچ کندلی در market_candles وجود ندارد و از نوبیتکس نیز داده‌ای دریافت نشد.']);
         }
 
-        $indicator = $data['indicator'] === 'rsi'
-            ? new Rsi((int) $data['period'])
-            : new Ema((int) $data['period']);
+        $indicator = match ($data['indicator']) {
+            'rsi' => new Rsi((int) $data['period']),
+            'macd' => new Macd($fast, $slow, $signal),
+            default => new Ema((int) $data['period']),
+        };
+
         $points = [];
 
         foreach ($storedCandles as $candle) {
-            $value = $indicator->update((float) $candle->close);
+            $rawValue = $indicator->update((float) $candle->close);
 
             if ((int) $candle->timestamp < $start->timestamp) {
+                continue;
+            }
+
+            if ($data['indicator'] === 'macd') {
+                $values = $rawValue;
+                $ready = $values['signal'] !== null;
+
+                $points[] = [
+                    'timestamp' => (int) $candle->timestamp,
+                    'time' => $this->formatPersianDate(
+                        Carbon::createFromTimestampUTC((int) $candle->timestamp)->setTimezone('Asia/Tehran')
+                    ),
+                    'close' => (float) $candle->close,
+                    'value' => null,
+                    'macd' => $values['macd'],
+                    'signal' => $values['signal'],
+                    'histogram' => $values['histogram'],
+                    'ready' => $ready,
+                ];
+
                 continue;
             }
 
@@ -136,20 +178,31 @@ class IndicatorLabController extends Controller
                     Carbon::createFromTimestampUTC((int) $candle->timestamp)->setTimezone('Asia/Tehran')
                 ),
                 'close' => (float) $candle->close,
-                'ema' => $value,
+                'value' => $rawValue,
+                'macd' => null,
+                'signal' => null,
+                'histogram' => null,
+                'ready' => $rawValue !== null,
             ];
         }
 
-        $readyPoints = array_values(array_filter($points, function ($point) {
-            return $point['ema'] !== null;
-        }));
+        $readyPoints = array_values(array_filter($points, fn ($point) => $point['ready']));
 
-        $chartPoints = array_map(function ($point) {
-            return [
+        $chartPoints = array_map(function ($point) use ($data) {
+            $chart = [
                 'timestamp' => $point['timestamp'],
                 'close' => $point['close'],
-                'ema' => $point['ema'],
             ];
+
+            if ($data['indicator'] === 'macd') {
+                $chart['macd'] = $point['macd'];
+                $chart['signal'] = $point['signal'];
+                $chart['histogram'] = $point['histogram'];
+            } else {
+                $chart['value'] = $point['value'];
+            }
+
+            return $chart;
         }, $readyPoints);
 
         $tablePoints = array_slice($readyPoints, -200);
@@ -165,6 +218,9 @@ class IndicatorLabController extends Controller
             'timeframe' => $data['timeframe'],
             'indicator' => $data['indicator'],
             'period' => (int) $data['period'],
+            'macd_fast' => $fast,
+            'macd_slow' => $slow,
+            'macd_signal' => $signal,
             'warmup_setting' => $warmupCandles,
             'start_date' => $start->format('Y-m-d H:i'),
             'end_date' => $end->format('Y-m-d H:i'),
@@ -197,13 +253,7 @@ class IndicatorLabController extends Controller
             (int) $date->format('d')
         );
 
-        return sprintf(
-            '%04d/%02d/%02d %s',
-            $year,
-            $month,
-            $day,
-            $date->format('H:i')
-        );
+        return sprintf('%04d/%02d/%02d %s', $year, $month, $day, $date->format('H:i'));
     }
 
     private function gregorianToJalali(int $gy, int $gm, int $gd): array
@@ -215,10 +265,7 @@ class IndicatorLabController extends Controller
         $gm -= 1;
         $gd -= 1;
 
-        $gDayNo = 365 * $gy
-            + intdiv($gy + 3, 4)
-            - intdiv($gy + 99, 100)
-            + intdiv($gy + 399, 400);
+        $gDayNo = 365 * $gy + intdiv($gy + 3, 4) - intdiv($gy + 99, 100) + intdiv($gy + 399, 400);
 
         for ($i = 0; $i < $gm; $i++) {
             $gDayNo += $gDaysInMonth[$i];
@@ -229,9 +276,7 @@ class IndicatorLabController extends Controller
         }
 
         $gDayNo += $gd;
-
         $jDayNo = $gDayNo - 79;
-
         $jNp = intdiv($jDayNo, 12053);
         $jDayNo %= 12053;
 
@@ -247,10 +292,7 @@ class IndicatorLabController extends Controller
             $jDayNo -= $jDaysInMonth[$i];
         }
 
-        $jm = $i + 1;
-        $jd = $jDayNo + 1;
-
-        return [$jy, $jm, $jd];
+        return [$jy, $i + 1, $jDayNo + 1];
     }
 
     private function markets()
@@ -265,9 +307,7 @@ class IndicatorLabController extends Controller
 
     private function subtractCandles(Carbon $start, string $timeframe, int $count): Carbon
     {
-        return $start->copy()->subSeconds(
-            self::TIMEFRAME_SECONDS[$timeframe] * $count
-        );
+        return $start->copy()->subSeconds(self::TIMEFRAME_SECONDS[$timeframe] * $count);
     }
 
     private function expectedCandleCount(int $from, int $to, int $step): int
