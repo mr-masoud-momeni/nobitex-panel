@@ -34,7 +34,10 @@ class BacktestEngine
         $winningTrades = 0;
         $losingTrades = 0;
         $lastPrice = null;
-        $startTimestamp = Carbon::parse($trade->start_date)->timestamp;
+        $startDate = $trade->start_date;
+        $startTimestamp = $startDate instanceof \DateTimeInterface
+            ? $startDate->getTimestamp()
+            : Carbon::parse($startDate)->timestamp;
 
         foreach ($candles as $candle) {
             $close = (float) $candle->close;
