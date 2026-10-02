@@ -24,6 +24,7 @@ class Trade extends Model
         'total_trades',
         'winning_trades',
         'losing_trades',
+        'backtest_log',
         'started_at',
         'stopped_at',
         'completed_at',
