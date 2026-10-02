@@ -259,7 +259,31 @@ class TradeController extends Controller
     {
         $trade->load(['strategy.rules', 'market', 'marketSymbol']);
 
-        return view('Backend.trades.show', compact('trade'));
+        $backtestLog = is_array($trade->backtest_log) ? $trade->backtest_log : [];
+        foreach ($backtestLog as &$execution) {
+            if (!empty($execution['entry_time'])) {
+                $execution['entry_time_jalali'] = $this->formatJalaliDateTime(
+                    Carbon::parse($execution['entry_time'], 'Asia/Tehran')
+                );
+            }
+            if (!empty($execution['exit_time'])) {
+                $execution['exit_time_jalali'] = $this->formatJalaliDateTime(
+                    Carbon::parse($execution['exit_time'], 'Asia/Tehran')
+                );
+            }
+        }
+        unset($execution);
+
+        return view('Backend.trades.show', [
+            'trade' => $trade,
+            'backtestLog' => $backtestLog,
+            'startDateJalali' => $trade->start_date
+                ? $this->formatJalaliDateTime($trade->start_date->copy()->setTimezone('Asia/Tehran'))
+                : null,
+            'endDateJalali' => $trade->end_date
+                ? $this->formatJalaliDateTime($trade->end_date->copy()->setTimezone('Asia/Tehran'))
+                : null,
+        ]);
     }
 
     public function start(
