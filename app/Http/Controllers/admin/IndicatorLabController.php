@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Market;
 use App\Models\MarketCandle;
 use App\Services\Trading\Indicators\Ema;
+use App\Services\Trading\Indicators\Rsi;
 use App\Services\Trading\Markets\NobitexMarket;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -39,6 +40,7 @@ class IndicatorLabController extends Controller
             'market_id' => ['required', 'exists:markets,id'],
             'market_symbol_id' => ['required', 'exists:market_symbols,id'],
             'timeframe' => ['required', 'string', 'max:20'],
+            'indicator' => ['required', 'in:ema,rsi'],
             'period' => ['required', 'integer', 'min:1', 'max:1000'],
             'warmup_candles' => ['required', 'integer', 'min:1', 'max:100000'],
             'start_date' => ['required', 'date'],
@@ -116,11 +118,13 @@ class IndicatorLabController extends Controller
                 ->withErrors(['start_date' => 'برای این نماد، تایم‌فریم و بازه انتخاب‌شده هیچ کندلی در market_candles وجود ندارد و از نوبیتکس نیز داده‌ای دریافت نشد.']);
         }
 
-        $ema = new Ema((int) $data['period']);
+        $indicator = $data['indicator'] === 'rsi'
+            ? new Rsi((int) $data['period'])
+            : new Ema((int) $data['period']);
         $points = [];
 
         foreach ($storedCandles as $candle) {
-            $value = $ema->update((float) $candle->close);
+            $value = $indicator->update((float) $candle->close);
 
             // Warm-up candles participate in EMA state but are not displayed.
             if ((int) $candle->timestamp < $start->timestamp) {
@@ -160,6 +164,7 @@ class IndicatorLabController extends Controller
             'symbol' => $symbol->display_name ?: $symbol->symbol,
             'raw_symbol' => $symbol->symbol,
             'timeframe' => $data['timeframe'],
+            'indicator' => $data['indicator'],
             'period' => (int) $data['period'],
             'warmup_setting' => $warmupCandles,
             'start_date' => $start->format('Y-m-d H:i'),
