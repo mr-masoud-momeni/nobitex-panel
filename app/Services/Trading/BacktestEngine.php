@@ -164,17 +164,26 @@ class BacktestEngine
             return;
         }
 
-        $indicators[$key] = match ($name) {
-            'ema' => new Ema((int) ($parameters['period'] ?? 14)),
-            'sma' => new Sma((int) ($parameters['period'] ?? 14)),
-            'rsi' => new Rsi((int) ($parameters['period'] ?? 14)),
-            'macd' => new Macd(
-                (int) ($parameters['fast'] ?? 12),
-                (int) ($parameters['slow'] ?? 26),
-                (int) ($parameters['signal'] ?? 9)
-            ),
-            default => throw new InvalidArgumentException("اندیکاتور پشتیبانی نمی‌شود: {$name}"),
-        };
+        switch ($name) {
+            case 'ema':
+                $indicators[$key] = new Ema((int) ($parameters['period'] ?? 14));
+                break;
+            case 'sma':
+                $indicators[$key] = new Sma((int) ($parameters['period'] ?? 14));
+                break;
+            case 'rsi':
+                $indicators[$key] = new Rsi((int) ($parameters['period'] ?? 14));
+                break;
+            case 'macd':
+                $indicators[$key] = new Macd(
+                    (int) ($parameters['fast'] ?? 12),
+                    (int) ($parameters['slow'] ?? 26),
+                    (int) ($parameters['signal'] ?? 9)
+                );
+                break;
+            default:
+                throw new InvalidArgumentException("اندیکاتور پشتیبانی نمی‌شود: {$name}");
+        }
     }
 
     private function indicatorKey(string $name, array $parameters): string
@@ -249,26 +258,34 @@ class BacktestEngine
             return false;
         }
 
-        return match ($rule->operator) {
-            '>' => $source > $target,
-            '<' => $source < $target,
-            '>=' => $source >= $target,
-            '<=' => $source <= $target,
-            '=' => abs($source - $target) < 0.0000000001,
-            'crosses_above' => $this->crossesAbove(
-                $source,
-                $target,
-                $previousValues[$sourceKey] ?? null,
-                $previousTarget
-            ),
-            'crosses_below' => $this->crossesBelow(
-                $source,
-                $target,
-                $previousValues[$sourceKey] ?? null,
-                $previousTarget
-            ),
-            default => false,
-        };
+        switch ($rule->operator) {
+            case '>':
+                return $source > $target;
+            case '<':
+                return $source < $target;
+            case '>=':
+                return $source >= $target;
+            case '<=':
+                return $source <= $target;
+            case '=':
+                return abs($source - $target) < 0.0000000001;
+            case 'crosses_above':
+                return $this->crossesAbove(
+                    $source,
+                    $target,
+                    $previousValues[$sourceKey] ?? null,
+                    $previousTarget
+                );
+            case 'crosses_below':
+                return $this->crossesBelow(
+                    $source,
+                    $target,
+                    $previousValues[$sourceKey] ?? null,
+                    $previousTarget
+                );
+            default:
+                return false;
+        }
     }
 
     private function valueForKey(?string $indicator, string $key, array $values): ?float
