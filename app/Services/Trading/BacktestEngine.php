@@ -332,7 +332,7 @@ class BacktestEngine
                 }
 
                 return $this->breaksAboveWithoutTouch(
-                    $low = (float) ($values['low'] ?? 0),
+                    (float) ($values['low'] ?? 0),
                     $target,
                     isset($previousValues['low']) ? (float) $previousValues['low'] : null,
                     $previousTarget
@@ -343,7 +343,7 @@ class BacktestEngine
                 }
 
                 return $this->breaksBelowWithoutTouch(
-                    $high = (float) ($values['high'] ?? 0),
+                    (float) ($values['high'] ?? 0),
                     $target,
                     isset($previousValues['high']) ? (float) $previousValues['high'] : null,
                     $previousTarget
