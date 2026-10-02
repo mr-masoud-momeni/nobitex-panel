@@ -71,7 +71,19 @@ class TradeController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('Backend.trades.create', compact('strategies', 'markets', 'trade'));
+        $now = Carbon::now('Asia/Tehran');
+        $defaultStart = $trade?->start_date?->copy()->setTimezone('Asia/Tehran') ?? $now->copy()->subMonth();
+        $defaultEnd = $trade?->end_date?->copy()->setTimezone('Asia/Tehran') ?? $now;
+
+        return view('Backend.trades.create', [
+            'strategies' => $strategies,
+            'markets' => $markets,
+            'trade' => $trade,
+            'default_start_date_unix' => $defaultStart->timestamp * 1000,
+            'default_end_date_unix' => $defaultEnd->timestamp * 1000,
+            'default_start_date_jalali' => $this->formatJalaliDateTime($defaultStart),
+            'default_end_date_jalali' => $this->formatJalaliDateTime($defaultEnd),
+        ]);
     }
 
     public function store(Request $request)
@@ -150,7 +162,7 @@ class TradeController extends Controller
 
     private function validatedData(Request $request, ?Trade $trade = null)
     {
-        return $request->validate([
+        $data = $request->validate([
             'strategy_id' => ['required', 'exists:strategies,id'],
             'market_id' => ['required', 'exists:markets,id'],
             'market_symbol_id' => [
@@ -172,9 +184,60 @@ class TradeController extends Controller
             'initial_capital' => ['required', 'numeric', 'gt:0'],
             'fee_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'warmup_candles' => ['required', 'integer', 'min:1', 'max:100000'],
-            'start_date' => ['nullable', 'date'],
-            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
-        ]);
+            'start_date' => ['nullable', 'integer'],
+            'end_date' => ['nullable', 'integer'],
+        ];
+
+        if (!empty($data['start_date'])) {
+            $data['start_date'] = Carbon::createFromTimestampMs((int) $data['start_date'], 'Asia/Tehran');
+        }
+
+        if (!empty($data['end_date'])) {
+            $data['end_date'] = Carbon::createFromTimestampMs((int) $data['end_date'], 'Asia/Tehran');
+        }
+
+        if (!empty($data['start_date']) && !empty($data['end_date']) && $data['end_date']->lt($data['start_date'])) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'end_date' => 'تاریخ پایان باید بعد از تاریخ شروع باشد.',
+            ]);
+        }
+
+        return $data;
+    }
+
+    private function formatJalaliDateTime(Carbon $date): string
+    {
+        [$year, $month, $day] = $this->gregorianToJalali(
+            (int) $date->format('Y'),
+            (int) $date->format('m'),
+            (int) $date->format('d')
+        );
+
+        return sprintf('%04d/%02d/%02d %s', $year, $month, $day, $date->format('H:i'));
+    }
+
+    private function gregorianToJalali(int $gy, int $gm, int $gd): array
+    {
+        $gDaysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+        $jDaysInMonth = [31, 31, 31, 31, 31, 31, 30, 30, 30, 30, 30, 29];
+        $gy -= 1600;
+        $gm -= 1;
+        $gd -= 1;
+        $gDayNo = 365 * $gy + intdiv($gy + 3, 4) - intdiv($gy + 99, 100) + intdiv($gy + 399, 400);
+        for ($i = 0; $i < $gm; $i++) $gDayNo += $gDaysInMonth[$i];
+        if ($gm > 1 && (($gy + 1600) % 4 === 0 && (($gy + 1600) % 100 !== 0 || ($gy + 1600) % 400 === 0))) $gDayNo++;
+        $gDayNo += $gd;
+        $jDayNo = $gDayNo - 79;
+        $jNp = intdiv($jDayNo, 12053);
+        $jDayNo %= 12053;
+        $jy = 979 + 33 * $jNp + 4 * intdiv($jDayNo, 1461);
+        $jDayNo %= 1461;
+        if ($jDayNo >= 366) {
+            $jy += intdiv($jDayNo - 1, 365);
+            $jDayNo = ($jDayNo - 1) % 365;
+        }
+        for ($i = 0; $i < 11 && $jDayNo >= $jDaysInMonth[$i]; $i++) $jDayNo -= $jDaysInMonth[$i];
+        return [$jy, $i + 1, $jDayNo + 1];
     }
 
     public function destroy(Trade $trade)
