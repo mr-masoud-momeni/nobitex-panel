@@ -47,6 +47,55 @@
 
                 <hr>
 
+                <hr>
+
+                <h4>گزارش ورود و خروج بک‌تست</h4>
+                @if($trade->backtest_log && count($trade->backtest_log))
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>ورود</th>
+                                    <th>قیمت ورود</th>
+                                    <th>خروج</th>
+                                    <th>قیمت خروج</th>
+                                    <th>سود/زیان</th>
+                                    <th>درصد</th>
+                                    <th>علت خروج</th>
+                                    <th>سرمایه پس از معامله</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($trade->backtest_log as $index => $execution)
+                                    <tr>
+                                        <td>{{ $index + 1 }}</td>
+                                        <td>{{ $execution['entry_time'] ?? '—' }}</td>
+                                        <td>{{ isset($execution['entry_price']) ? number_format($execution['entry_price'], 2) : '—' }}</td>
+                                        <td>{{ $execution['exit_time'] ?? '—' }}</td>
+                                        <td>{{ isset($execution['exit_price']) ? number_format($execution['exit_price'], 2) : '—' }}</td>
+                                        <td>{{ isset($execution['profit']) ? number_format($execution['profit'], 2) : '—' }}</td>
+                                        <td>{{ isset($execution['profit_percent']) ? number_format($execution['profit_percent'], 2) : '—' }}%</td>
+                                        <td>
+                                            @switch($execution['exit_reason'] ?? null)
+                                                @case('exit_rule') شرط خروج @break
+                                                @case('stop_loss_or_take_profit') حد ضرر/حد سود @break
+                                                @case('end_of_test') پایان بک‌تست @break
+                                                @default —
+                                            @endswitch
+                                        </td>
+                                        <td>{{ isset($execution['cash_after']) ? number_format($execution['cash_after'], 2) : '—' }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @elseif($trade->status === 'completed')
+                    <div class="alert alert-info">برای این بک‌تست معامله‌ای ثبت نشده است.</div>
+                @else
+                    <div class="alert alert-info">پس از اجرای بک‌تست، جزئیات ورود و خروج اینجا نمایش داده می‌شود.</div>
+                @endif
+
                 <h4>استراتژی مورد استفاده</h4>
                 <p>{{ $trade->strategy->description ?: 'بدون توضیحات' }}</p>
                 <p>
