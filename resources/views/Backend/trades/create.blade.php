@@ -110,11 +110,13 @@
                             <div class="row">
                                 <div class="col-md-4 form-group">
                                     <label>از تاریخ</label>
-                                    <input type="datetime-local" name="start_date" class="form-control" value="{{ $trade && $trade->start_date ? $trade->start_date->format('Y-m-d\\TH:i') : '' }}">
+                                    <input type="text" id="trade-start-date-display" class="form-control" autocomplete="off" placeholder="مثلاً ۱۴۰۵/۰۷/۱۰ ۱۲:۰۰">
+                                    <input type="hidden" name="start_date" id="trade-start-date" value="{{ old('start_date', $trade?->start_date?->timestamp * 1000 ?? $default_start_date_unix) }}">
                                 </div>
                                 <div class="col-md-4 form-group">
                                     <label>تا تاریخ</label>
-                                    <input type="datetime-local" name="end_date" class="form-control" value="{{ $trade && $trade->end_date ? $trade->end_date->format('Y-m-d\\TH:i') : '' }}">
+                                    <input type="text" id="trade-end-date-display" class="form-control" autocomplete="off" placeholder="مثلاً ۱۴۰۵/۰۸/۱۰ ۱۲:۰۰">
+                                    <input type="hidden" name="end_date" id="trade-end-date" value="{{ old('end_date', $trade?->end_date?->timestamp * 1000 ?? $default_end_date_unix) }}">
                                 </div>
                                 <div class="col-md-4 form-group">
                                     <label>Warm-up (تعداد کندل)</label>
@@ -133,7 +135,57 @@
         </div>
     </div>
 </div>
+<script>
+(function () {
+    function initJalaliDatepicker(displaySelector, hiddenSelector, initialUnix) {
+        var display = $(displaySelector);
+        var hidden = $(hiddenSelector);
+
+        display.pDatepicker({
+            format: 'YYYY/MM/DD HH:mm',
+            initialValue: true,
+            initialValueType: 'persian',
+            persianDigit: false,
+            autoClose: false,
+            timePicker: {
+                enabled: true,
+                meridiem: { enabled: false }
+            },
+            altField: hiddenSelector,
+            altFormat: 'unix',
+            onSelect: function (unix) {
+                hidden.val(unix);
+            }
+        });
+
+        if (initialUnix) {
+            display.pDatepicker('setDate', parseInt(initialUnix, 10));
+            hidden.val(initialUnix);
+        }
+    }
+
+    var startUnix = document.getElementById('trade-start-date').value;
+    var endUnix = document.getElementById('trade-end-date').value;
+
+    initJalaliDatepicker('#trade-start-date-display', '#trade-start-date', startUnix);
+    initJalaliDatepicker('#trade-end-date-display', '#trade-end-date', endUnix);
+
+    document.querySelector('form').addEventListener('submit', function () {
+        var start = parseInt(document.getElementById('trade-start-date').value || '0', 10);
+        var end = parseInt(document.getElementById('trade-end-date').value || '0', 10);
+
+        if (start && end && end < start) {
+            alert('تاریخ پایان باید بعد از تاریخ شروع باشد.');
+            event.preventDefault();
+        }
+    });
+})();
+</script>
 @endsection
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/persian-datepicker@1.2.0/dist/css/persian-datepicker.min.css">
+<script src="https://cdn.jsdelivr.net/npm/persian-date@1.1.0/dist/persian-date.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/persian-datepicker@1.2.0/dist/js/persian-datepicker.min.js"></script>
 
 @section('scripts')
 <script>
