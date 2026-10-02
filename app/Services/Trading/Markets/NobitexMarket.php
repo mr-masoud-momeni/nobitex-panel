@@ -150,7 +150,6 @@ class NobitexMarket
                 count($volumes)
             );
 
-
             $oldestTimestamp = null;
             $rows = [];
 
@@ -189,7 +188,7 @@ class NobitexMarket
                 $stored += count($rows);
             }
 
-            if ($oldestTimestamp === null || $oldestTimestamp <= $from || $count < 500) {
+            if ($oldestTimestamp === null || $oldestTimestamp <= $from) {
                 break;
             }
 
