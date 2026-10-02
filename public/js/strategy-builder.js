@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', function () {
             label: 'EMA',
             parameters: ['period'],
             compareWith: ['price', 'ema', 'sma'],
-            operators: ['>', '<', '>=', '<=', '=', 'crosses_above', 'crosses_below']
+            operators: ['>', '<', '>=', '<=', '=', 'crosses_above', 'crosses_below', 'slope_>', 'slope_<']
         },
         sma: {
             label: 'SMA',
@@ -49,7 +49,9 @@ document.addEventListener('DOMContentLoaded', function () {
         'crosses_above': 'عبور رو به بالا از',
         'crosses_below': 'عبور رو به پایین از',
         'breaks_above_without_touch': 'شکست کامل رو به بالا بدون برخورد',
-        'breaks_below_without_touch': 'شکست کامل رو به پایین بدون برخورد'
+        'breaks_below_without_touch': 'شکست کامل رو به پایین بدون برخورد',
+        'slope_>': 'شیب بیشتر از',
+        'slope_<': 'شیب کمتر از'
     };
 
     function escapeHtml(value) {
@@ -77,8 +79,12 @@ document.addEventListener('DOMContentLoaded', function () {
         }).join('');
     }
 
-    function getParameterInputs(index, fieldName, indicatorKey) {
-        var parameters = indicators[indicatorKey].parameters;
+    function getParameterInputs(index, fieldName, indicatorKey, includeLookback) {
+        var parameters = indicators[indicatorKey].parameters.slice();
+
+        if (includeLookback) {
+            parameters.push('lookback');
+        }
 
         if (!parameters.length) {
             return '<span class="text-muted">بدون پارامتر</span>';
@@ -86,10 +92,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
         return parameters.map(function (parameter) {
             var defaultValue = parameter === 'period' ? 14 :
+                parameter === 'lookback' ? 5 :
                 parameter === 'fast' ? 12 :
                 parameter === 'slow' ? 26 : 9;
 
             var label = parameter === 'period' ? 'دوره' :
+                parameter === 'lookback' ? 'تعداد کندل' :
                 parameter === 'fast' ? 'سریع' :
                 parameter === 'slow' ? 'کند' : 'سیگنال';
 
@@ -102,26 +110,41 @@ document.addEventListener('DOMContentLoaded', function () {
         }).join('');
     }
 
+    function isSlopeOperator(operator) {
+        return operator === 'slope_>' || operator === 'slope_<';
+    }
+
+    function refreshSlopeParameters(row) {
+        var index = row.getAttribute('data-index');
+        var indicatorKey = row.querySelector('.rule-indicator').value;
+        var container = row.querySelector('.rule-parameters');
+        var operator = row.querySelector('.rule-operator').value;
+
+        container.innerHTML = getParameterInputs(index, 'parameters', indicatorKey, isSlopeOperator(operator));
+    }
+
     function refreshSourceIndicator(row) {
         var index = row.getAttribute('data-index');
         var indicatorKey = row.querySelector('.rule-indicator').value;
 
         row.querySelector('.rule-parameters').innerHTML =
-            getParameterInputs(index, 'parameters', indicatorKey);
+            getParameterInputs(index, 'parameters', indicatorKey, false);
 
         row.querySelector('.rule-operator').innerHTML =
             getOperatorOptions(indicatorKey);
 
+        refreshSlopeParameters(row);
         refreshComparisonOptions(row);
     }
 
     function refreshComparisonOptions(row) {
         var sourceIndicator = row.querySelector('.rule-indicator').value;
+        var operator = row.querySelector('.rule-operator').value;
         var allowedIndicators = indicators[sourceIndicator].compareWith;
         var typeSelect = row.querySelector('.rule-value-type');
         var currentType = typeSelect.value;
 
-        var canCompareWithIndicator = allowedIndicators.length > 0;
+        var canCompareWithIndicator = allowedIndicators.length > 0 && !isSlopeOperator(operator);
 
         typeSelect.innerHTML =
             '<option value="number">عدد</option>' +
@@ -170,7 +193,7 @@ document.addEventListener('DOMContentLoaded', function () {
         var indicatorKey = row.querySelector('.rule-value-indicator').value;
 
         row.querySelector('.rule-value-parameters').innerHTML =
-            getParameterInputs(index, 'value][parameters', indicatorKey);
+            getParameterInputs(index, 'value][parameters', indicatorKey, false);
     }
 
     function createRuleRow(index, type) {
@@ -255,6 +278,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (target.classList.contains('rule-value-type')) {
             refreshComparisonValue(row);
+        }
+
+        if (target.classList.contains('rule-operator')) {
+            refreshSlopeParameters(row);
+            refreshComparisonOptions(row);
         }
 
         if (target.classList.contains('rule-value-indicator')) {
