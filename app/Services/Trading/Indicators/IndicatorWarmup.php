@@ -13,16 +13,20 @@ class IndicatorWarmup
         }
 
         $maxPeriod = 1;
+        $maxLookback = 1;
 
         foreach ($strategy->rules as $rule) {
             $maxPeriod = max($maxPeriod, $this->maxPeriod($rule->parameters));
+            $maxLookback = max($maxLookback, $this->lookback($rule->parameters));
 
             if ($rule->value_type === 'indicator' && is_array($rule->value)) {
-                $maxPeriod = max($maxPeriod, $this->maxPeriod($rule->value['parameters'] ?? []));
+                $targetParameters = $rule->value['parameters'] ?? [];
+                $maxPeriod = max($maxPeriod, $this->maxPeriod($targetParameters));
+                $maxLookback = max($maxLookback, $this->lookback($targetParameters));
             }
         }
 
-        return max(1000, $maxPeriod * 50);
+        return max(1000, ($maxPeriod * 50) + $maxLookback);
     }
 
     private function maxPeriod($parameters): int
