@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', function () {
             label: 'قیمت',
             parameters: [],
             compareWith: ['price', 'ema', 'sma'],
-            operators: ['>', '<', '>=', '<=', '=', 'crosses_above', 'crosses_below', 'breaks_above_without_touch', 'breaks_below_without_touch']
+            operators: ['>', '<', '>=', '<=', '=', 'crosses_above', 'crosses_below', 'breaks_above_without_touch', 'breaks_below_without_touch', 'slope_>', 'slope_<']
         },
         ema: {
             label: 'EMA',
@@ -18,13 +18,13 @@ document.addEventListener('DOMContentLoaded', function () {
             label: 'SMA',
             parameters: ['period'],
             compareWith: ['price', 'ema', 'sma'],
-            operators: ['>', '<', '>=', '<=', '=', 'crosses_above', 'crosses_below']
+            operators: ['>', '<', '>=', '<=', '=', 'crosses_above', 'crosses_below', 'slope_>', 'slope_<']
         },
         rsi: {
             label: 'RSI',
             parameters: ['period'],
             compareWith: ['rsi'],
-            operators: ['>', '<', '>=', '<=', '=']
+            operators: ['>', '<', '>=', '<=', '=', 'slope_>', 'slope_<']
         },
         macd: {
             label: 'MACD',
