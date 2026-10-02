@@ -50,7 +50,7 @@
                                         @endif
                                     </td>
                                     <td style="white-space: nowrap;">
-                                        @if($strategy->trades->isEmpty())
+                                        @if(!$strategy->trades->contains(function ($trade) { return $trade->status !== 'draft'; }))
                                             <a href="{{ route('strategy.edit', $strategy) }}" class="btn btn-warning btn-xs">ویرایش</a>
 
                                             <form action="{{ route('strategy.destroy', $strategy) }}" method="post" style="display:inline;" onsubmit="return confirm('آیا از حذف این استراتژی مطمئن هستید؟');">
