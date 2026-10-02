@@ -14,6 +14,8 @@
     .indicator-lab .chart-axis { stroke: #ddd; stroke-width: 1; }
     .indicator-lab .chart-close { fill: none; stroke: #777; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
     .indicator-lab .chart-ema { fill: none; stroke: #c79a3b; stroke-width: 2.5; vector-effect: non-scaling-stroke; }
+    .indicator-lab .chart-rsi { fill: none; stroke: #c79a3b; stroke-width: 2.5; vector-effect: non-scaling-stroke; }
+    .indicator-lab .chart-rsi-level { stroke: #ddd; stroke-width: 1; stroke-dasharray: 6 5; }
     .indicator-lab .chart-legend { margin-top: 10px; color: #666; }
     .indicator-lab .legend-item { display: inline-block; margin-left: 18px; }
     .indicator-lab .legend-line { display: inline-block; width: 24px; height: 2px; vertical-align: middle; margin-left: 6px; background: #777; }
@@ -46,8 +48,9 @@
                     <div class="row">
                         <div class="col-md-2">
                             <label class="field-label">اندیکاتور</label>
-                            <select class="form-control" disabled>
-                                <option>EMA</option>
+                            <select name="indicator" id="indicator-type" class="form-control">
+                                <option value="ema" {{ old('indicator', $result['indicator'] ?? 'ema') === 'ema' ? 'selected' : '' }}>EMA</option>
+                                <option value="rsi" {{ old('indicator', $result['indicator'] ?? 'ema') === 'rsi' ? 'selected' : '' }}>RSI</option>
                             </select>
                         </div>
 
@@ -81,7 +84,7 @@
                         <div class="col-md-1">
                             <label class="field-label">Period</label>
                             <input type="number" name="period" class="form-control"
-                                   value="{{ old('period', $result['period'] ?? 20) }}"
+                                   value="{{ old('period', $result['period'] ?? 14) }}"
                                    min="1" max="1000" required>
                         </div>
 
@@ -119,7 +122,7 @@
                         </div>
 
                         <div class="col-md-4" style="padding-top:24px;">
-                            <button type="submit" class="btn btn-success">▶ اجرای EMA</button>
+                            <button type="submit" class="btn btn-success">▶ اجرای اندیکاتور</button>
                         </div>
                     </div>
                 </form>
@@ -129,18 +132,18 @@
         @if($result)
             <div class="panel panel-default chart-panel">
                 <div class="panel-heading clearfix">
-                    <strong>نتیجه EMA {{ $result['period'] }}</strong>
+                    <strong>نتیجه {{ strtoupper($result['indicator']) }} {{ $result['period'] }}</strong>
                     <span class="pull-left">{{ $result['symbol'] }} / {{ $result['timeframe'] }}</span>
                 </div>
 
                 <div class="panel-body">
                     <div class="chart-wrap">
-                        <svg id="ema-chart" class="chart-svg" viewBox="0 0 1200 430" preserveAspectRatio="none" aria-label="نمودار Close و EMA"></svg>
+                        <svg id="ema-chart" class="chart-svg" viewBox="0 0 1200 430" preserveAspectRatio="none" aria-label="نمودار اندیکاتور"></svg>
                     </div>
 
                     <div class="chart-legend">
                         <span class="legend-item"><span class="legend-line"></span> Close</span>
-                        <span class="legend-item"><span class="legend-line ema"></span> EMA {{ $result['period'] }}</span>
+                        <span class="legend-item"><span class="legend-line ema"></span> {{ strtoupper($result['indicator']) }} {{ $result['period'] }}</span>
                     </div>
 
                     <div class="stats">
@@ -165,14 +168,14 @@
                     <div class="table-responsive table-wrap">
                         <table class="table table-striped table-hover">
                             <thead>
-                            <tr><th>زمان</th><th>Close</th><th>EMA {{ $result['period'] }}</th></tr>
+                            <tr><th>زمان</th><th>Close</th><th>{{ strtoupper($result['indicator']) }} {{ $result['period'] }}</th></tr>
                             </thead>
                             <tbody>
                             @forelse($result['table_points'] as $point)
                                 <tr>
                                     <td>{{ $point['time'] }}</td>
                                     <td>{{ number_format($point['close'], 2) }}</td>
-                                    <td class="ema-value">{{ number_format($point['ema'], 2) }}</td>
+                                    <td class="ema-value">{{ number_format($point['ema'], 4) }}</td>
                                 </tr>
                             @empty
                                 <tr><td colspan="3" class="text-center">برای این بازه نقطه‌ی قابل نمایش برای EMA وجود ندارد.</td></tr>
@@ -180,7 +183,7 @@
                             </tbody>
                         </table>
                     </div>
-                    <p class="muted-note">Warm-up در محاسبه EMA استفاده می‌شود ولی در نمودار و جدول نمایش داده نمی‌شود.</p>
+                    <p class="muted-note">Warm-up در محاسبه اندیکاتور استفاده می‌شود ولی در نمودار و جدول نمایش داده نمی‌شود.</p>
                 </div>
             </div>
         @endif
@@ -198,16 +201,21 @@
     var width = 1200, height = 430;
     var pad = {top: 20, right: 20, bottom: 25, left: 20};
     var values = [];
+    var isRsi = @json(($result['indicator'] ?? 'ema') === 'rsi');
 
     points.forEach(function (point) {
-        if (point.close !== null) values.push(point.close);
-        if (point.ema !== null) values.push(point.ema);
+        if (isRsi) {
+            if (point.ema !== null) values.push(point.ema);
+        } else {
+            if (point.close !== null) values.push(point.close);
+            if (point.ema !== null) values.push(point.ema);
+        }
     });
 
     if (!values.length) return;
 
-    var min = Math.min.apply(null, values);
-    var max = Math.max.apply(null, values);
+    var min = isRsi ? 0 : Math.min.apply(null, values);
+    var max = isRsi ? 100 : Math.max.apply(null, values);
     var range = max - min || 1;
 
     function x(index) {
@@ -234,9 +242,16 @@
         grid += '<line class="chart-axis" x1="' + pad.left + '" y1="' + gy + '" x2="' + (width - pad.right) + '" y2="' + gy + '"></line>';
     }
 
+    var levels = '';
+    if (isRsi) {
+        [30, 70].forEach(function (level) {
+            levels += '<line class="chart-rsi-level" x1="' + pad.left + '" y1="' + y(level) + '" x2="' + (width - pad.right) + '" y2="' + y(level) + '"></line>';
+        });
+    }
+
     svg.innerHTML =
-        grid +
-        '<path class="chart-close" d="' + pathFor('close') + '"></path>' +
+        grid + levels +
+        (isRsi ? '' : '<path class="chart-close" d="' + pathFor('close') + '"></path>') +
         '<path class="chart-ema" d="' + pathFor('ema') + '"></path>';
 })();
 </script>
