@@ -7,7 +7,7 @@ use App\Models\StrategyRule;
 use App\Models\Trade;
 use App\Services\Trading\BacktestEngine;
 use Carbon\Carbon;
-use PHPUnit\Framework\TestCase;
+use Tests\TestCase;
 use stdClass;
 
 class BacktestEngineTest extends TestCase
