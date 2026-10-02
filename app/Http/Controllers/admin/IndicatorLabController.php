@@ -8,6 +8,7 @@ use App\Models\MarketCandle;
 use App\Services\Trading\Indicators\Ema;
 use App\Services\Trading\Indicators\Macd;
 use App\Services\Trading\Indicators\Rsi;
+use App\Services\Trading\Indicators\Sma;
 use App\Services\Trading\Markets\NobitexMarket;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -44,8 +45,8 @@ class IndicatorLabController extends Controller
             'market_id' => ['required', 'exists:markets,id'],
             'market_symbol_id' => ['required', 'exists:market_symbols,id'],
             'timeframe' => ['required', 'string', 'max:20'],
-            'indicator' => ['required', 'in:ema,rsi,macd'],
-            'period' => ['required_if:indicator,ema,rsi', 'nullable', 'integer', 'min:1', 'max:1000'],
+            'indicator' => ['required', 'in:sma,ema,rsi,macd'],
+            'period' => ['required_if:indicator,sma,ema,rsi', 'nullable', 'integer', 'min:1', 'max:1000'],
             'macd_fast' => ['nullable', 'integer', 'min:1', 'max:1000'],
             'macd_slow' => ['nullable', 'integer', 'min:2', 'max:1000'],
             'macd_signal' => ['nullable', 'integer', 'min:1', 'max:1000'],
@@ -138,6 +139,7 @@ class IndicatorLabController extends Controller
         }
 
         $indicator = match ($data['indicator']) {
+            'sma' => new Sma((int) $data['period']),
             'rsi' => new Rsi((int) $data['period']),
             'macd' => new Macd($fast, $slow, $signal),
             default => new Ema((int) $data['period']),
