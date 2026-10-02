@@ -7,6 +7,8 @@ use App\Models\Market;
 use App\Models\MarketSymbol;
 use App\Models\Strategy;
 use App\Models\Trade;
+use App\Models\MarketCandle;
+use App\Services\Trading\BacktestEngine;
 use App\Services\Trading\Indicators\IndicatorWarmup;
 use App\Services\Trading\Markets\NobitexMarket;
 use Carbon\Carbon;
@@ -195,7 +197,12 @@ class TradeController extends Controller
         return view('Backend.trades.show', compact('trade'));
     }
 
-    public function start(Trade $trade, NobitexMarket $nobitexMarket, IndicatorWarmup $indicatorWarmup)
+    public function start(
+        Trade $trade,
+        NobitexMarket $nobitexMarket,
+        IndicatorWarmup $indicatorWarmup,
+        BacktestEngine $backtestEngine
+    )
     {
         if ($trade->status === 'running') {
             return back();
@@ -228,21 +235,62 @@ class TradeController extends Controller
                 $strategy = $trade->strategy()->with('rules')->firstOrFail();
                 $warmupCandles = $indicatorWarmup->candlesFor($strategy, $trade->warmup_candles);
 
+                $start = Carbon::parse($trade->start_date);
+                $end = Carbon::parse($trade->end_date);
+
                 $count = $nobitexMarket->syncCandles(
                     $marketSymbol,
                     $trade->timeframe,
-                    Carbon::parse($trade->start_date),
-                    Carbon::parse($trade->end_date),
+                    $start,
+                    $end,
                     $warmupCandles
                 );
 
+                $timeframeMinutes = [
+                    '1m' => 1,
+                    '5m' => 5,
+                    '15m' => 15,
+                    '30m' => 30,
+                    '1h' => 60,
+                    '4h' => 240,
+                    '1d' => 1440,
+                ][$trade->timeframe] ?? null;
+
+                if ($timeframeMinutes === null) {
+                    throw new \RuntimeException('تایم‌فریم انتخاب‌شده پشتیبانی نمی‌شود.');
+                }
+
+                $candleStart = $start->copy()->subMinutes($timeframeMinutes * $warmupCandles);
+
+                $candles = MarketCandle::where('market_symbol_id', $marketSymbol->id)
+                    ->where('timeframe', $trade->timeframe)
+                    ->whereBetween('timestamp', [$candleStart->timestamp, $end->timestamp])
+                    ->orderBy('timestamp')
+                    ->get();
+
+                if ($candles->isEmpty()) {
+                    throw new \RuntimeException('هیچ کندلی برای اجرای بک‌تست پیدا نشد.');
+                }
+
+                $result = $backtestEngine->run($strategy, $trade, $candles);
+
                 $trade->update([
                     'status' => 'completed',
+                    'result_amount' => $result['result_amount'],
+                    'result_percent' => $result['result_percent'],
+                    'total_trades' => $result['total_trades'],
+                    'winning_trades' => $result['winning_trades'],
+                    'losing_trades' => $result['losing_trades'],
                     'completed_at' => now(),
                     'stopped_at' => null,
                 ]);
 
-                return back()->with('success', "دریافت داده انجام شد. {$count} کندل شامل {$warmupCandles} کندل warm-up در جدول market_candles ثبت/به‌روزرسانی شد.");
+                return back()->with(
+                    'success',
+                    "بک‌تست با موفقیت اجرا شد. {$count} کندل همگام‌سازی شد؛ "
+                    ."نتیجه: ".number_format($result['result_percent'], 2)."٪ | "
+                    ."تعداد معاملات: ".$result['total_trades']
+                );
             } catch (Throwable $e) {
                 $trade->update([
                     'status' => 'draft',
