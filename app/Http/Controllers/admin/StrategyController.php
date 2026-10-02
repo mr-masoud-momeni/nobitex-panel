@@ -11,7 +11,7 @@ class StrategyController extends Controller
 {
     public function index()
     {
-        $strategies = Strategy::with('rules')->orderByDesc('id')->get();
+        $strategies = Strategy::with(['rules', 'trades'])->orderByDesc('id')->get();
 
         return view('Backend.strategies.index', compact('strategies'));
     }
