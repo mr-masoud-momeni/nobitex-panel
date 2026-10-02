@@ -53,6 +53,7 @@
                         <div class="col-md-2">
                             <label class="field-label">اندیکاتور</label>
                             <select name="indicator" id="indicator-type" class="form-control">
+                                <option value="sma" {{ old('indicator', $result['indicator'] ?? 'ema') === 'sma' ? 'selected' : '' }}>SMA</option>
                                 <option value="ema" {{ old('indicator', $result['indicator'] ?? 'ema') === 'ema' ? 'selected' : '' }}>EMA</option>
                                 <option value="rsi" {{ old('indicator', $result['indicator'] ?? 'ema') === 'rsi' ? 'selected' : '' }}>RSI</option>
                                 <option value="macd" {{ old('indicator', $result['indicator'] ?? 'ema') === 'macd' ? 'selected' : '' }}>MACD</option>
@@ -165,7 +166,7 @@
                     </div>
 
                     <div class="chart-legend">
-                        @if(($result['indicator'] ?? 'ema') === 'ema')
+                        @if(in_array(($result['indicator'] ?? 'ema'), ['sma', 'ema'], true))
                             <span class="legend-item"><span class="legend-line"></span> Close</span>
                             <span class="legend-item"><span class="legend-line ema"></span> EMA {{ $result['period'] }}</span>
                         @elseif(($result['indicator'] ?? 'ema') === 'macd')
@@ -183,8 +184,8 @@
                         <div class="stat"><small>کل کندل‌های محاسبات</small><strong>{{ number_format($result['candle_count']) }}</strong></div>
                         <div class="stat"><small>کندل‌های خروجی</small><strong>{{ number_format($result['displayed_count']) }}</strong></div>
                         <div class="stat"><small>کندل آماده اندیکاتور</small><strong>{{ number_format($result['ready_count']) }}</strong></div>
-                        <div class="stat"><small>اولین EMA</small><strong>{{ $result['first_ready_time'] ?: '—' }}</strong></div>
-                        <div class="stat"><small>آخرین EMA</small><strong>{{ $result['last_ready_time'] ?: '—' }}</strong></div>
+                        <div class="stat"><small>اولین نقطه آماده</small><strong>{{ $result['first_ready_time'] ?: '—' }}</strong></div>
+                        <div class="stat"><small>آخرین نقطه آماده</small><strong>{{ $result['last_ready_time'] ?: '—' }}</strong></div>
                     </div>
                 </div>
             </div>
