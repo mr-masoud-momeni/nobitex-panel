@@ -186,7 +186,7 @@ class TradeController extends Controller
             'warmup_candles' => ['required', 'integer', 'min:1', 'max:100000'],
             'start_date' => ['nullable', 'integer'],
             'end_date' => ['nullable', 'integer'],
-        ];
+        ]);
 
         if (!empty($data['start_date'])) {
             $data['start_date'] = Carbon::createFromTimestampMs((int) $data['start_date'], 'Asia/Tehran');
