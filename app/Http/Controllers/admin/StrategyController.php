@@ -103,8 +103,8 @@ class StrategyController extends Controller
             'rules.*.sort_order' => ['nullable', 'integer', 'min:0'],
         ]);
 
-        if ($strategy->trades()->exists()) {
-            return back()->with('error', 'این استراتژی به معامله متصل است و قابل ویرایش نیست. برای تغییر آن، از داپلیکیت استفاده کنید.');
+        if ($strategy->trades()->where('status', '!=', 'draft')->exists()) {
+            return back()->with('error', 'این استراتژی در یک معامله اجراشده یا در حال اجرا استفاده شده و قابل ویرایش نیست. برای تغییر آن، از داپلیکیت استفاده کنید.');
         }
 
         DB::transaction(function () use ($request, $data, $strategy) {
