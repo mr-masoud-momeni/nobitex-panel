@@ -281,6 +281,7 @@ class TradeController extends Controller
                     'total_trades' => $result['total_trades'],
                     'winning_trades' => $result['winning_trades'],
                     'losing_trades' => $result['losing_trades'],
+                    'backtest_log' => $result['execution_log'],
                     'completed_at' => now(),
                     'stopped_at' => null,
                 ]);
