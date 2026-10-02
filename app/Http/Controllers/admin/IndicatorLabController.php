@@ -45,7 +45,7 @@ class IndicatorLabController extends Controller
             'market_symbol_id' => ['required', 'exists:market_symbols,id'],
             'timeframe' => ['required', 'string', 'max:20'],
             'indicator' => ['required', 'in:ema,rsi,macd'],
-            'period' => ['required', 'integer', 'min:1', 'max:1000'],
+            'period' => ['required_if:indicator,ema,rsi', 'nullable', 'integer', 'min:1', 'max:1000'],
             'macd_fast' => ['nullable', 'integer', 'min:1', 'max:1000'],
             'macd_slow' => ['nullable', 'integer', 'min:2', 'max:1000'],
             'macd_signal' => ['nullable', 'integer', 'min:1', 'max:1000'],
