@@ -96,6 +96,13 @@
                                 @endforeach
                             </select>
                         </div>
+
+                        <div class="col-md-2">
+                            <label class="field-label">Warm-up (کندل)</label>
+                            <input type="number" name="warmup_candles" class="form-control"
+                                   value="{{ old('warmup_candles', $result['warmup_setting'] ?? 1000) }}"
+                                   min="1" max="100000" step="1" required>
+                        </div>
                     </div>
 
                     <div class="row" style="margin-top:15px;">
@@ -138,6 +145,7 @@
 
                     <div class="stats">
                         <div class="stat"><small>کندل‌های Warm-up</small><strong>{{ number_format($result['warmup_count']) }}</strong></div>
+                        <div class="stat"><small>Warm-up درخواستی</small><strong>{{ number_format($result['warmup_setting']) }}</strong></div>
                         <div class="stat"><small>کل کندل‌های محاسبات</small><strong>{{ number_format($result['candle_count']) }}</strong></div>
                         <div class="stat"><small>کندل‌های خروجی</small><strong>{{ number_format($result['displayed_count']) }}</strong></div>
                         <div class="stat"><small>کندل دارای EMA</small><strong>{{ number_format($result['ready_count']) }}</strong></div>
