@@ -6,8 +6,12 @@ use App\Models\Strategy;
 
 class IndicatorWarmup
 {
-    public function candlesFor(Strategy $strategy): int
+    public function candlesFor(Strategy $strategy, ?int $override = null): int
     {
+        if ($override !== null) {
+            return max(1, $override);
+        }
+
         $maxPeriod = 1;
 
         foreach ($strategy->rules as $rule) {
