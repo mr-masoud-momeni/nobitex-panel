@@ -108,15 +108,21 @@
                         <div class="panel-heading">بازه بک‌تست</div>
                         <div class="panel-body">
                             <div class="row">
-                                <div class="col-md-6 form-group">
+                                <div class="col-md-4 form-group">
                                     <label>از تاریخ</label>
                                     <input type="datetime-local" name="start_date" class="form-control" value="{{ $trade && $trade->start_date ? $trade->start_date->format('Y-m-d\\TH:i') : '' }}">
                                 </div>
-                                <div class="col-md-6 form-group">
+                                <div class="col-md-4 form-group">
                                     <label>تا تاریخ</label>
                                     <input type="datetime-local" name="end_date" class="form-control" value="{{ $trade && $trade->end_date ? $trade->end_date->format('Y-m-d\\TH:i') : '' }}">
                                 </div>
-                            </div>
+                                <div class="col-md-4 form-group">
+                                    <label>Warm-up (تعداد کندل)</label>
+                                    <input type="number" name="warmup_candles" class="form-control" min="1" max="100000" step="1"
+                                           value="{{ old('warmup_candles', $trade->warmup_candles ?? 1000) }}" required>
+                                    <small class="help-block">فقط برای آماده‌سازی اندیکاتورهاست و در بازه معامله محسوب نمی‌شود.</small>
+                                </div>
+                            </div>                            </div>
                         </div>
                     </div>
 
