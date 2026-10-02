@@ -186,8 +186,8 @@ class TradeController extends Controller
             'initial_capital' => ['required', 'numeric', 'gt:0'],
             'fee_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'warmup_candles' => ['required', 'integer', 'min:1', 'max:100000'],
-            'start_date' => ['nullable', 'integer'],
-            'end_date' => ['nullable', 'integer'],
+            'start_date' => ['nullable', 'integer', 'min:1'],
+            'end_date' => ['nullable', 'integer', 'min:1'],
         ]);
 
         if (!empty($data['start_date'])) {
