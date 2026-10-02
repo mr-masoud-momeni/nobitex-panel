@@ -142,7 +142,9 @@
                     </div>
 
                     <div class="chart-legend">
-                        <span class="legend-item"><span class="legend-line"></span> Close</span>
+                        @if(($result['indicator'] ?? 'ema') === 'ema')
+                            <span class="legend-item"><span class="legend-line"></span> Close</span>
+                        @endif
                         <span class="legend-item"><span class="legend-line ema"></span> {{ strtoupper($result['indicator']) }} {{ $result['period'] }}</span>
                     </div>
 
@@ -178,7 +180,7 @@
                                     <td class="ema-value">{{ number_format($point['ema'], 4) }}</td>
                                 </tr>
                             @empty
-                                <tr><td colspan="3" class="text-center">برای این بازه نقطه‌ی قابل نمایش برای EMA وجود ندارد.</td></tr>
+                                <tr><td colspan="3" class="text-center">برای این بازه نقطه‌ی قابل نمایش برای اندیکاتور وجود ندارد.</td></tr>
                             @endforelse
                             </tbody>
                         </table>
