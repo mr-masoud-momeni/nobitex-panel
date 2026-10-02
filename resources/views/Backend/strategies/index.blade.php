@@ -9,6 +9,10 @@
             <div class="alert alert-success">{{ session('success') }}</div>
         @endif
 
+        @if(session('error'))
+            <div class="alert alert-danger">{{ session('error') }}</div>
+        @endif
+
         <div class="panel panel-default">
             <div class="panel-heading clearfix">
                 <h3 style="display:inline-block;">استراتژی‌های معاملاتی</h3>
@@ -45,7 +49,19 @@
                                             <span class="label label-default">غیرفعال</span>
                                         @endif
                                     </td>
-                                    <td>
+                                    <td style="white-space: nowrap;">
+                                        @if($strategy->trades->isEmpty())
+                                            <a href="{{ route('strategy.edit', $strategy) }}" class="btn btn-warning btn-xs">ویرایش</a>
+
+                                            <form action="{{ route('strategy.destroy', $strategy) }}" method="post" style="display:inline;" onsubmit="return confirm('آیا از حذف این استراتژی مطمئن هستید؟');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn btn-danger btn-xs">حذف</button>
+                                            </form>
+                                        @else
+                                            <span class="text-muted" title="این استراتژی به معامله متصل است">قفل</span>
+                                        @endif
+
                                         <form action="{{ route('strategy.duplicate', $strategy) }}" method="post" style="display:inline;">
                                             @csrf
                                             <button type="submit" class="btn btn-default btn-xs">
