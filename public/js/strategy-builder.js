@@ -1,6 +1,23 @@
 document.addEventListener('DOMContentLoaded', function () {
     var ruleIndex = 0;
 
+    function normalizeRuleType(type) {
+        if (type === 'entry') return 'long_entry';
+        if (type === 'exit') return 'long_exit';
+        return type;
+    }
+
+    function refreshDirectionSections() {
+        var direction = document.getElementById('strategy-direction');
+        var longSections = document.getElementById('long-rule-sections');
+        var shortSections = document.getElementById('short-rule-sections');
+
+        if (!direction || !longSections || !shortSections) return;
+
+        longSections.style.display = direction.value === 'short' ? 'none' : '';
+        shortSections.style.display = direction.value === 'long' ? 'none' : '';
+    }
+
     var indicators = {
         price: {
             label: 'قیمت',
@@ -328,9 +345,10 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         window.strategyInitialRules.forEach(function (rule) {
-            addRule(rule.type);
+            var type = normalizeRuleType(rule.type);
+            addRule(type);
 
-            var container = document.getElementById(rule.type + '-rules');
+            var container = document.getElementById(type + '-rules');
             var rows = container.querySelectorAll('.strategy-rule-row');
             var row = rows[rows.length - 1];
 
@@ -376,5 +394,12 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    var directionSelect = document.getElementById('strategy-direction');
+    if (directionSelect) {
+        directionSelect.addEventListener('change', refreshDirectionSections);
+    }
+
+    refreshDirectionSections();
     restoreInitialRules();
+    refreshDirectionSections();
 });
