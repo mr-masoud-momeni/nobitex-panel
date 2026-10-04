@@ -16,6 +16,10 @@ class BacktestEngine
 {
     public function run(Strategy $strategy, Trade $trade, iterable $candles): array
     {
+        if (($strategy->strategy_type ?? 'generic') === 'ma_trend') {
+            return app(MovingAverageTrendEngine::class)->run($strategy, $trade, $candles);
+        }
+
         $rules = $strategy->rules->sortBy('sort_order')->values();
         $direction = $strategy->direction ?: 'long';
 
