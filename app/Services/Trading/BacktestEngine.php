@@ -17,18 +17,31 @@ class BacktestEngine
     public function run(Strategy $strategy, Trade $trade, iterable $candles): array
     {
         $rules = $strategy->rules->sortBy('sort_order')->values();
-        $entryRules = $rules->where('type', 'entry')->values();
-        $exitRules = $rules->where('type', 'exit')->values();
+        $direction = $strategy->direction ?: 'long';
 
-        if ($entryRules->isEmpty()) {
-            throw new InvalidArgumentException('استراتژی حداقل به یک شرط ورود نیاز دارد.');
+        $entryRules = [
+            'long' => $rules->filter(fn ($rule) => in_array($rule->type, ['entry', 'long_entry'], true))->values(),
+            'short' => $rules->where('type', 'short_entry')->values(),
+        ];
+        $exitRules = [
+            'long' => $rules->filter(fn ($rule) => in_array($rule->type, ['exit', 'long_exit'], true))->values(),
+            'short' => $rules->where('type', 'short_exit')->values(),
+        ];
+
+        if ($direction !== 'short' && $entryRules['long']->isEmpty()) {
+            throw new InvalidArgumentException('استراتژی Long حداقل به یک شرط ورود نیاز دارد.');
+        }
+        if ($direction !== 'long' && $entryRules['short']->isEmpty()) {
+            throw new InvalidArgumentException('استراتژی Short حداقل به یک شرط ورود نیاز دارد.');
         }
 
         $indicators = $this->buildIndicators($rules);
         $cash = (float) $trade->initial_capital;
         $quantity = 0.0;
+        $positionDirection = null;
         $entryPrice = null;
         $entryValue = null;
+        $entryFee = 0.0;
         $previousValues = [];
         $valueHistory = [];
         $totalTrades = 0;
@@ -37,10 +50,9 @@ class BacktestEngine
         $executionLog = [];
         $lastPrice = null;
         $entryTimestamp = null;
-        $startDate = $trade->start_date;
-        $startTimestamp = $startDate instanceof \DateTimeInterface
-            ? $startDate->getTimestamp()
-            : Carbon::parse($startDate)->timestamp;
+        $startTimestamp = $trade->start_date instanceof \DateTimeInterface
+            ? $trade->start_date->getTimestamp()
+            : Carbon::parse($trade->start_date)->timestamp;
 
         foreach ($candles as $candle) {
             $close = (float) $candle->close;
@@ -48,59 +60,40 @@ class BacktestEngine
             $low = (float) $candle->low;
             $volume = $candle->volume !== null ? (float) $candle->volume : null;
 
-            $values = [
-                'price' => $close,
-                'high' => $high,
-                'low' => $low,
-                'volume' => $volume,
-            ];
+            $values = ['price' => $close, 'high' => $high, 'low' => $low, 'volume' => $volume];
 
             foreach ($indicators as $key => $indicator) {
-                if ($indicator instanceof Macd) {
-                    $values[$key] = $indicator->update($close)['macd'];
-                } else {
-                    $values[$key] = $indicator->update($close);
-                }
+                $values[$key] = $indicator instanceof Macd
+                    ? $indicator->update($close)['macd']
+                    : $indicator->update($close);
             }
 
             if ((int) $candle->timestamp < $startTimestamp) {
-                foreach ($values as $key => $value) {
-                    if ($value === null) {
-                        continue;
-                    }
-                    $valueHistory[$key] = $valueHistory[$key] ?? [];
-                    $valueHistory[$key][] = (float) $value;
-                }
+                $this->appendHistory($valueHistory, $values);
                 $previousValues = $values;
                 continue;
             }
 
-            if ($quantity > 0) {
-                $exitPrice = $this->exitPriceFromRisk($entryPrice, $high, $low, $strategy);
+            if ($quantity > 0 && $positionDirection !== null) {
+                $exitPrice = $this->exitPriceFromRisk($entryPrice, $high, $low, $strategy, $positionDirection);
+                $exitReason = $exitPrice !== null ? 'stop_loss_or_take_profit' : null;
 
-                $exitReason = null;
-
-                if ($exitPrice !== null) {
-                    $exitReason = 'stop_loss_or_take_profit';
-                }
-
-                if ($exitPrice === null && !$exitRules->isEmpty() && $this->evaluateRules($exitRules, $values, $previousValues, $valueHistory)) {
+                if ($exitPrice === null && !$exitRules[$positionDirection]->isEmpty()
+                    && $this->evaluateRules($exitRules[$positionDirection], $values, $previousValues, $valueHistory)) {
                     $exitPrice = $close;
                     $exitReason = 'exit_rule';
                 }
 
                 if ($exitPrice !== null) {
                     [$cash, $profit] = $this->closePosition(
-                        $cash,
-                        $quantity,
-                        $exitPrice,
-                        (float) ($trade->fee_percent ?? 0),
-                        (float) ($entryValue ?? 0)
+                        $cash, $quantity, $entryPrice, $exitPrice,
+                        (float) ($trade->fee_percent ?? 0), $entryValue, $entryFee, $positionDirection
                     );
 
                     $totalTrades++;
                     $profit >= 0 ? $winningTrades++ : $losingTrades++;
                     $executionLog[] = [
+                        'direction' => $positionDirection,
                         'entry_time' => $this->formatTimestamp($entryTimestamp),
                         'entry_price' => $entryPrice,
                         'entry_value' => $entryValue,
@@ -112,53 +105,74 @@ class BacktestEngine
                         'cash_after' => $cash,
                     ];
                     $quantity = 0.0;
+                    $positionDirection = null;
                     $entryPrice = null;
                     $entryValue = null;
+                    $entryFee = 0.0;
+                    $entryTimestamp = null;
                 }
             }
 
-            if ($quantity <= 0 && $this->evaluateRules($entryRules, $values, $previousValues, $valueHistory)) {
-                $feeRate = max(0.0, (float) ($trade->fee_percent ?? 0)) / 100;
-                $notional = $this->positionNotional(
-                    $cash,
-                    (float) ($strategy->risk_percent ?? 0),
-                    (float) ($strategy->stop_loss ?? 0)
-                );
+            if ($quantity <= 0) {
+                $directions = $direction === 'both' ? ['long', 'short'] : [$direction];
 
-                if ($notional > 0 && $close > 0) {
-                    $quantity = $notional / ($close * (1 + $feeRate));
-                    $entryFee = $quantity * $close * $feeRate;
-                    $entryValue = ($quantity * $close) + $entryFee;
-                    $cash -= $entryValue;
+                foreach ($directions as $candidateDirection) {
+                    if ($entryRules[$candidateDirection]->isEmpty()
+                        || !$this->evaluateRules($entryRules[$candidateDirection], $values, $previousValues, $valueHistory)) {
+                        continue;
+                    }
+
+                    $feeRate = max(0.0, (float) ($trade->fee_percent ?? 0)) / 100;
+                    $notional = $this->positionNotional($cash, (float) ($strategy->risk_percent ?? 0), (float) ($strategy->stop_loss ?? 0));
+
+                    if ($notional <= 0 || $close <= 0) {
+                        break;
+                    }
+
+                    $quantity = $notional / $close;
+                    $entryFee = $notional * $feeRate;
+                    $entryValue = $candidateDirection === 'long' ? $notional + $entryFee : $notional;
+
+                    if ($candidateDirection === 'long') {
+                        if ($entryValue > $cash) {
+                            $quantity = $cash / ($close * (1 + $feeRate));
+                            $notional = $quantity * $close;
+                            $entryFee = $notional * $feeRate;
+                            $entryValue = $notional + $entryFee;
+                        }
+                        $cash -= $entryValue;
+                    } else {
+                        if ($entryFee > $cash) {
+                            $quantity = $cash / ($close * max($feeRate, 0.000000001));
+                            $notional = $quantity * $close;
+                            $entryFee = $notional * $feeRate;
+                            $entryValue = $notional;
+                        }
+                        $cash -= $entryFee;
+                    }
+
+                    $positionDirection = $candidateDirection;
                     $entryPrice = $close;
                     $entryTimestamp = (int) $candle->timestamp;
+                    break;
                 }
             }
 
-            foreach ($values as $key => $value) {
-                if ($value === null) {
-                    continue;
-                }
-
-                $valueHistory[$key] = $valueHistory[$key] ?? [];
-                $valueHistory[$key][] = (float) $value;
-            }
-
+            $this->appendHistory($valueHistory, $values);
             $previousValues = $values;
             $lastPrice = $close;
         }
 
-        if ($quantity > 0 && $lastPrice !== null) {
+        if ($quantity > 0 && $lastPrice !== null && $positionDirection !== null) {
             [$cash, $profit] = $this->closePosition(
-                $cash,
-                $quantity,
-                $lastPrice,
-                (float) ($trade->fee_percent ?? 0),
-                (float) ($entryValue ?? 0)
+                $cash, $quantity, $entryPrice, $lastPrice,
+                (float) ($trade->fee_percent ?? 0), $entryValue, $entryFee, $positionDirection
             );
 
             $totalTrades++;
+            $profit >= 0 ? $winningTrades++ : $losingTrades++;
             $executionLog[] = [
+                'direction' => $positionDirection,
                 'entry_time' => $this->formatTimestamp($entryTimestamp),
                 'entry_price' => $entryPrice,
                 'entry_value' => $entryValue,
@@ -169,13 +183,11 @@ class BacktestEngine
                 'exit_reason' => 'end_of_test',
                 'cash_after' => $cash,
             ];
-            $profit >= 0 ? $winningTrades++ : $losingTrades++;
         }
 
         $resultAmount = $cash - (float) $trade->initial_capital;
-        $resultPercent = ((float) $trade->initial_capital) > 0
-            ? ($resultAmount / (float) $trade->initial_capital) * 100
-            : 0;
+        $resultPercent = (float) $trade->initial_capital > 0
+            ? ($resultAmount / (float) $trade->initial_capital) * 100 : 0;
 
         return [
             'result_amount' => $resultAmount,
@@ -460,33 +472,28 @@ class BacktestEngine
         return $previousHigh >= $previousTarget && $high < $target;
     }
 
-    private function exitPriceFromRisk(
-        ?float $entryPrice,
-        float $high,
-        float $low,
-        Strategy $strategy
-    ): ?float {
-        if ($entryPrice === null) {
-            return null;
-        }
+    private function exitPriceFromRisk(?float $entryPrice, float $high, float $low, Strategy $strategy, string $direction): ?float
+    {
+        if ($entryPrice === null) return null;
 
         $stopLoss = (float) ($strategy->stop_loss ?? 0);
         $takeProfit = (float) ($strategy->take_profit ?? 0);
 
-        if ($stopLoss > 0) {
-            $stopPrice = $entryPrice * (1 - ($stopLoss / 100));
-
-            if ($low <= $stopPrice) {
-                return $stopPrice;
+        if ($direction === 'short') {
+            if ($stopLoss > 0 && $high >= $entryPrice * (1 + $stopLoss / 100)) {
+                return $entryPrice * (1 + $stopLoss / 100);
             }
+            if ($takeProfit > 0 && $low <= $entryPrice * (1 - $takeProfit / 100)) {
+                return $entryPrice * (1 - $takeProfit / 100);
+            }
+            return null;
         }
 
-        if ($takeProfit > 0) {
-            $takeProfitPrice = $entryPrice * (1 + ($takeProfit / 100));
-
-            if ($high >= $takeProfitPrice) {
-                return $takeProfitPrice;
-            }
+        if ($stopLoss > 0 && $low <= $entryPrice * (1 - $stopLoss / 100)) {
+            return $entryPrice * (1 - $stopLoss / 100);
+        }
+        if ($takeProfit > 0 && $high >= $entryPrice * (1 + $takeProfit / 100)) {
+            return $entryPrice * (1 + $takeProfit / 100);
         }
 
         return null;
@@ -511,16 +518,33 @@ class BacktestEngine
     private function closePosition(
         float $cash,
         float $quantity,
-        float $price,
+        float $entryPrice,
+        float $exitPrice,
         float $feePercent,
-        float $entryValue
+        float $entryValue,
+        float $entryFee,
+        string $direction
     ): array {
         $feeRate = max(0.0, $feePercent) / 100;
-        $gross = $quantity * $price;
-        $fee = $gross * $feeRate;
-        $proceeds = $gross - $fee;
-        $profit = $proceeds - $entryValue;
+        $exitGross = $quantity * $exitPrice;
+        $exitFee = $exitGross * $feeRate;
 
+        if ($direction === 'short') {
+            $profit = ($quantity * ($entryPrice - $exitPrice)) - $entryFee - $exitFee;
+            return [$cash + $profit, $profit];
+        }
+
+        $proceeds = $exitGross - $exitFee;
+        $profit = $proceeds - $entryValue;
         return [$cash + $proceeds, $profit];
+    }
+
+    private function appendHistory(array &$history, array $values): void
+    {
+        foreach ($values as $key => $value) {
+            if ($value === null) continue;
+            $history[$key] = $history[$key] ?? [];
+            $history[$key][] = (float) $value;
+        }
     }
 }
