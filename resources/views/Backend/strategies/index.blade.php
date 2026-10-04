@@ -28,6 +28,8 @@
                             <thead>
                             <tr>
                                 <th>نام</th>
+                                <th>نوع</th>
+                                <th>جهت</th>
                                 <th>ریسک هر معامله</th>
                                 <th>حد ضرر</th>
                                 <th>حد سود</th>
@@ -39,6 +41,12 @@
                             @foreach($strategies as $strategy)
                                 <tr>
                                     <td>{{ $strategy->name }}</td>
+                                    <td>
+                                        {{ $strategy->strategy_type === 'ma_trend' ? 'روند با میانگین' : 'شرطی' }}
+                                    </td>
+                                    <td>
+                                        {{ ['long' => 'Long', 'short' => 'Short', 'both' => 'Both'][$strategy->direction ?? 'long'] }}
+                                    </td>
                                     <td>{{ $strategy->risk_percent !== null ? $strategy->risk_percent . '%' : '—' }}</td>
                                     <td>{{ $strategy->stop_loss !== null ? $strategy->stop_loss . '%' : '—' }}</td>
                                     <td>{{ $strategy->take_profit !== null ? $strategy->take_profit . '%' : '—' }}</td>
