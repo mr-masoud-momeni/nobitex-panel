@@ -100,6 +100,7 @@ class MovingAverageTrendEngine
             }
 
             $allowedTrend = $direction === 'both' || $trendDirection === $direction;
+            $structuralBreak = false;
 
             if ($trendDirection === 'long' && $allowedTrend && !$entryTaken) {
                 $hadPullback = $pullbackDetected;
@@ -110,11 +111,13 @@ class MovingAverageTrendEngine
                     $pullbackDetected = true;
                 }
 
+                if ($lockedStructure !== null && $high > $lockedStructure) {
+                    $structuralBreak = true;
+                }
+
                 if ($postBreakExtreme !== null && $high > $postBreakExtreme) {
-                    if ($lockedStructure !== null && $high > $lockedStructure) {
-                        $lockedStructure = null;
-                    }
                     $postBreakExtreme = $high;
+                    $lockedStructure = null;
                 } elseif ($postBreakExtreme !== null && $high < $postBreakExtreme && $lockedStructure === null) {
                     $lockedStructure = $postBreakExtreme;
                 }
@@ -129,11 +132,13 @@ class MovingAverageTrendEngine
                     $pullbackDetected = true;
                 }
 
+                if ($lockedStructure !== null && $low < $lockedStructure) {
+                    $structuralBreak = true;
+                }
+
                 if ($postBreakExtreme !== null && $low < $postBreakExtreme) {
-                    if ($lockedStructure !== null && $low < $lockedStructure) {
-                        $lockedStructure = null;
-                    }
                     $postBreakExtreme = $low;
+                    $lockedStructure = null;
                 } elseif ($postBreakExtreme !== null && $low > $postBreakExtreme && $lockedStructure === null) {
                     $lockedStructure = $postBreakExtreme;
                 }
@@ -224,7 +229,6 @@ class MovingAverageTrendEngine
                         && $close > $open
                         && $this->candleHeightPercent($high, $low) >= $minCandlePercent;
 
-                    $structuralBreak = $lockedStructure !== null && $high > $lockedStructure;
                     $entrySignal = $confirmation || $structuralBreak;
                 } elseif ($trendDirection === 'short') {
                     $confirmation = $hadPullback
@@ -232,7 +236,6 @@ class MovingAverageTrendEngine
                         && $close < $open
                         && $this->candleHeightPercent($high, $low) >= $minCandlePercent;
 
-                    $structuralBreak = $lockedStructure !== null && $low < $lockedStructure;
                     $entrySignal = $confirmation || $structuralBreak;
                 }
 
