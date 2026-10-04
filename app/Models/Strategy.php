@@ -9,6 +9,7 @@ class Strategy extends Model
     protected $fillable = [
         'name',
         'description',
+        'direction',
         'risk_percent',
         'stop_loss',
         'take_profit',
