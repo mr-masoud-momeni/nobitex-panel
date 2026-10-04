@@ -24,24 +24,49 @@
                         <textarea name="description" class="form-control" rows="3">{{ old('description', $strategy->description ?? '') }}</textarea>
                     </div>
 
-                    <div class="panel panel-default strategy-rules-panel">
-                        <div class="panel-heading clearfix">
-                            <strong>شرایط ورود</strong>
-                            <button type="button" class="btn btn-primary btn-xs pull-left" onclick="addRule('entry')">
-                                + افزودن شرط
-                            </button>
-                        </div>
-                        <div class="panel-body" id="entry-rules"></div>
+                    <div class="form-group">
+                        <label>جهت معامله</label>
+                        <select name="direction" id="strategy-direction" class="form-control" required>
+                            <option value="long" {{ old('direction', $strategy->direction ?? 'long') === 'long' ? 'selected' : '' }}>Long (خرید)</option>
+                            <option value="short" {{ old('direction', $strategy->direction ?? 'long') === 'short' ? 'selected' : '' }}>Short (فروش)</option>
+                            <option value="both" {{ old('direction', $strategy->direction ?? 'long') === 'both' ? 'selected' : '' }}>Both (هر دو)</option>
+                        </select>
                     </div>
 
-                    <div class="panel panel-default strategy-rules-panel">
-                        <div class="panel-heading clearfix">
-                            <strong>شرایط خروج</strong>
-                            <button type="button" class="btn btn-primary btn-xs pull-left" onclick="addRule('exit')">
-                                + افزودن شرط
-                            </button>
+                    <div id="long-rule-sections">
+                        <div class="panel panel-default strategy-rules-panel">
+                            <div class="panel-heading clearfix">
+                                <strong>شرایط ورود Long</strong>
+                                <button type="button" class="btn btn-primary btn-xs pull-left" onclick="addRule('long_entry')">+ افزودن شرط</button>
+                            </div>
+                            <div class="panel-body" id="long_entry-rules"></div>
                         </div>
-                        <div class="panel-body" id="exit-rules"></div>
+
+                        <div class="panel panel-default strategy-rules-panel">
+                            <div class="panel-heading clearfix">
+                                <strong>شرایط خروج Long</strong>
+                                <button type="button" class="btn btn-primary btn-xs pull-left" onclick="addRule('long_exit')">+ افزودن شرط</button>
+                            </div>
+                            <div class="panel-body" id="long_exit-rules"></div>
+                        </div>
+                    </div>
+
+                    <div id="short-rule-sections">
+                        <div class="panel panel-default strategy-rules-panel">
+                            <div class="panel-heading clearfix">
+                                <strong>شرایط ورود Short</strong>
+                                <button type="button" class="btn btn-primary btn-xs pull-left" onclick="addRule('short_entry')">+ افزودن شرط</button>
+                            </div>
+                            <div class="panel-body" id="short_entry-rules"></div>
+                        </div>
+
+                        <div class="panel panel-default strategy-rules-panel">
+                            <div class="panel-heading clearfix">
+                                <strong>شرایط خروج Short</strong>
+                                <button type="button" class="btn btn-primary btn-xs pull-left" onclick="addRule('short_exit')">+ افزودن شرط</button>
+                            </div>
+                            <div class="panel-body" id="short_exit-rules"></div>
+                        </div>
                     </div>
 
                     <div class="panel panel-default">
