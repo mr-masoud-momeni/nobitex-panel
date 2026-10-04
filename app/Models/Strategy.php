@@ -10,6 +10,8 @@ class Strategy extends Model
         'name',
         'description',
         'direction',
+        'strategy_type',
+        'config',
         'risk_percent',
         'stop_loss',
         'take_profit',
@@ -18,6 +20,7 @@ class Strategy extends Model
 
     protected $casts = [
         'is_active' => 'boolean',
+        'config' => 'array',
     ];
 
     public function rules()
