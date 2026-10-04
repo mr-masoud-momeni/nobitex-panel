@@ -43,14 +43,8 @@ class MovingAverageTrendEngine
         $postBreakExtreme = null;
         $lockedStructure = null;
 
-        // Exit sequence state:
-        // The entry candle is the initial reference (head). The head moves ONLY
-        // when a new qualifying extreme is made. Failed candles never become
-        // a new reference; they only increase the consecutive-failure count.
         $sequenceCount = 0;
         $sequenceCompleted = false;
-        $referenceHigh = null;
-        $referenceLow = null;
 
         $previousCandle = null;
         $previousMa = null;
@@ -162,37 +156,28 @@ class MovingAverageTrendEngine
                 $exitReason = $exitPrice !== null ? 'stop_loss_or_take_profit' : null;
 
                 if ($exitPrice === null) {
-                    // The reference/head is NOT the previous candle.
-                    // Long: a new high moves the head to this candle.
-                    // Short: a new low moves the head to this candle.
-                    // Every candle that fails to make a new extreme increments
-                    // the failure count. On the Nth consecutive failure we exit.
                     $qualifies = $positionDirection === 'long'
-                        ? $referenceHigh !== null && $high > $referenceHigh
-                        : $referenceLow !== null && $low < $referenceLow;
+                        ? $high > ($previousCandle !== null ? (float) $previousCandle->high : $high)
+                        : $low < ($previousCandle !== null ? (float) $previousCandle->low : $low);
 
-                    if ($positionDirection === 'long') {
+                    if (!$sequenceCompleted) {
                         if ($qualifies) {
-                            $referenceHigh = $high;
-                            $sequenceCount = 0;
-                        } else {
                             $sequenceCount++;
                             if ($sequenceCount >= $sequenceLength) {
-                                $exitPrice = $close;
-                                $exitReason = 'new_high_low_sequence_failed';
+                                $sequenceCompleted = true;
+                                $sequenceCount = 1;
                             }
+                        } else {
+                            $sequenceCount = 0;
+                        }
+                    } elseif ($qualifies) {
+                        $sequenceCount++;
+                        if ($sequenceCount >= $sequenceLength) {
+                            $sequenceCount = 1;
                         }
                     } else {
-                        if ($qualifies) {
-                            $referenceLow = $low;
-                            $sequenceCount = 0;
-                        } else {
-                            $sequenceCount++;
-                            if ($sequenceCount >= $sequenceLength) {
-                                $exitPrice = $close;
-                                $exitReason = 'new_high_low_sequence_failed';
-                            }
-                        }
+                        $exitPrice = $close;
+                        $exitReason = 'new_high_low_sequence_failed';
                     }
                 }
 
@@ -234,8 +219,6 @@ class MovingAverageTrendEngine
                     $entryReason = null;
                     $sequenceCount = 0;
                     $sequenceCompleted = false;
-                    $referenceHigh = null;
-                    $referenceLow = null;
                 }
             }
 
@@ -298,8 +281,6 @@ class MovingAverageTrendEngine
                             $entryTaken = true;
                             $sequenceCount = 0;
                             $sequenceCompleted = false;
-                            $referenceHigh = $high;
-                            $referenceLow = $low;
                         }
                     }
                 }
