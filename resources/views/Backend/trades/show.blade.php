@@ -58,13 +58,15 @@
                             <thead>
                                 <tr>
                                     <th>#</th>
+                                    <th>جهت</th>
+                                    <th>دلیل ورود</th>
                                     <th>ورود</th>
                                     <th>قیمت ورود</th>
                                     <th>خروج</th>
                                     <th>قیمت خروج</th>
                                     <th>سود/زیان</th>
                                     <th>درصد</th>
-                                    <th>علت خروج</th>
+                                    <th>دلیل خروج</th>
                                     <th>سرمایه پس از معامله</th>
                                 </tr>
                             </thead>
@@ -72,6 +74,23 @@
                                 @foreach($backtestLog as $index => $execution)
                                     <tr>
                                         <td>{{ $index + 1 }}</td>
+                                        <td>
+                                            @if(($execution['direction'] ?? null) === 'long')
+                                                <span class="label label-success">لانگ</span>
+                                            @elseif(($execution['direction'] ?? null) === 'short')
+                                                <span class="label label-danger">شورت</span>
+                                            @else
+                                                —
+                                            @endif
+                                        </td>
+                                        <td>
+                                            @switch($execution['entry_reason'] ?? null)
+                                                @case('entry_rule') شروط ورود استراتژی @break
+                                                @case('pullback_confirmation') پولبک + کندل تأیید @break
+                                                @case('structural_breakout') شکست ساختاری @break
+                                                @default —
+                                            @endswitch
+                                        </td>
                                         <td>{{ $execution['entry_time_jalali'] ?? $execution['entry_time'] ?? '—' }}</td>
                                         <td>{{ isset($execution['entry_price']) ? number_format($execution['entry_price'], 2) : '—' }}</td>
                                         <td>{{ $execution['exit_time_jalali'] ?? $execution['exit_time'] ?? '—' }}</td>
