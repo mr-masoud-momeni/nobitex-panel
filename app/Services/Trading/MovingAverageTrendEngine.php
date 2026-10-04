@@ -102,6 +102,7 @@ class MovingAverageTrendEngine
             $allowedTrend = $direction === 'both' || $trendDirection === $direction;
 
             if ($trendDirection === 'long' && $allowedTrend && !$entryTaken) {
+                $hadPullback = $pullbackDetected;
                 $zoneLow = $ma * (1 - $zonePercent / 100);
                 $zoneHigh = $ma * (1 + $zonePercent / 100);
 
@@ -120,6 +121,7 @@ class MovingAverageTrendEngine
             }
 
             if ($trendDirection === 'short' && $allowedTrend && !$entryTaken) {
+                $hadPullback = $pullbackDetected;
                 $zoneLow = $ma * (1 - $zonePercent / 100);
                 $zoneHigh = $ma * (1 + $zonePercent / 100);
 
@@ -217,7 +219,7 @@ class MovingAverageTrendEngine
                 $entryDirection = $trendDirection;
 
                 if ($trendDirection === 'long') {
-                    $confirmation = $pullbackDetected
+                    $confirmation = $hadPullback
                         && $low > $ma
                         && $close > $open
                         && $this->candleHeightPercent($high, $low) >= $minCandlePercent;
@@ -225,7 +227,7 @@ class MovingAverageTrendEngine
                     $structuralBreak = $lockedStructure !== null && $high > $lockedStructure;
                     $entrySignal = $confirmation || $structuralBreak;
                 } elseif ($trendDirection === 'short') {
-                    $confirmation = $pullbackDetected
+                    $confirmation = $hadPullback
                         && $high < $ma
                         && $close < $open
                         && $this->candleHeightPercent($high, $low) >= $minCandlePercent;
