@@ -13,6 +13,7 @@
             <div class="panel-body">
                 <form action="{{ $strategy ? route('strategy.update', $strategy) : route('strategy.store') }}" method="post">
                     @csrf
+                    <input type="hidden" name="strategy_type" value="generic">
 
                     <div class="form-group">
                         <label>نام استراتژی</label>
