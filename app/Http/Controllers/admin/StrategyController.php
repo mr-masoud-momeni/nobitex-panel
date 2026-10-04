@@ -114,6 +114,7 @@ class StrategyController extends Controller
             $strategy->update([
                 'name' => $data['name'],
                 'description' => $data['description'] ?? null,
+                'direction' => $data['direction'],
                 'risk_percent' => $data['risk_percent'] ?? null,
                 'stop_loss' => $data['stop_loss'] ?? null,
                 'take_profit' => $data['take_profit'] ?? null,
