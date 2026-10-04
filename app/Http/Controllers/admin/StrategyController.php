@@ -33,12 +33,13 @@ class StrategyController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
+            'direction' => ['required', 'in:long,short,both'],
             'risk_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'stop_loss' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'take_profit' => ['nullable', 'numeric', 'min:0'],
             'is_active' => ['nullable', 'boolean'],
             'rules' => ['nullable', 'array'],
-            'rules.*.type' => ['required', 'in:entry,exit'],
+            'rules.*.type' => ['required', 'in:entry,exit,long_entry,long_exit,short_entry,short_exit'],
             'rules.*.indicator' => ['required', 'string', 'max:50'],
             'rules.*.parameters' => ['nullable', 'array'],
             'rules.*.operator' => ['required', 'string', 'max:30'],
@@ -52,6 +53,7 @@ class StrategyController extends Controller
             $strategy = Strategy::create([
                 'name' => $data['name'],
                 'description' => $data['description'] ?? null,
+                'direction' => $data['direction'],
                 'risk_percent' => $data['risk_percent'] ?? null,
                 'stop_loss' => $data['stop_loss'] ?? null,
                 'take_profit' => $data['take_profit'] ?? null,
@@ -167,6 +169,7 @@ class StrategyController extends Controller
             $copy = Strategy::create([
                 'name' => $strategy->name . ' - کپی',
                 'description' => $strategy->description,
+                'direction' => $strategy->direction,
                 'risk_percent' => $strategy->risk_percent,
                 'stop_loss' => $strategy->stop_loss,
                 'take_profit' => $strategy->take_profit,
