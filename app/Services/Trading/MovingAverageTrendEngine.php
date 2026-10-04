@@ -34,6 +34,7 @@ class MovingAverageTrendEngine
         $entryValue = null;
         $entryFee = 0.0;
         $entryTimestamp = null;
+        $entryReason = null;
 
         $trendDirection = null;
         $trendCycleId = 0;
@@ -196,6 +197,7 @@ class MovingAverageTrendEngine
                     $profit >= 0 ? $winningTrades++ : $losingTrades++;
                     $executionLog[] = [
                         'direction' => $positionDirection,
+                        'entry_reason' => $entryReason,
                         'entry_time' => $this->formatTimestamp($entryTimestamp),
                         'entry_price' => $entryPrice,
                         'entry_value' => $entryValue,
@@ -214,6 +216,7 @@ class MovingAverageTrendEngine
                     $entryValue = null;
                     $entryFee = 0.0;
                     $entryTimestamp = null;
+                    $entryReason = null;
                     $sequenceCount = 0;
                     $sequenceCompleted = false;
                 }
@@ -230,6 +233,8 @@ class MovingAverageTrendEngine
                         && $this->candleHeightPercent($high, $low) >= $minCandlePercent;
 
                     $entrySignal = $confirmation || $structuralBreak;
+                    $entryReason = $confirmation ? 'pullback_confirmation' : ($structuralBreak ? 'structural_breakout' : null);
+                    $entryReason = $confirmation ? 'pullback_confirmation' : ($structuralBreak ? 'structural_breakout' : null);
                 } elseif ($trendDirection === 'short') {
                     $confirmation = $hadPullback
                         && $high < $ma
@@ -303,6 +308,7 @@ class MovingAverageTrendEngine
             $profit >= 0 ? $winningTrades++ : $losingTrades++;
             $executionLog[] = [
                 'direction' => $positionDirection,
+                'entry_reason' => $entryReason,
                 'entry_time' => $this->formatTimestamp($entryTimestamp),
                 'entry_price' => $entryPrice,
                 'entry_value' => $entryValue,
