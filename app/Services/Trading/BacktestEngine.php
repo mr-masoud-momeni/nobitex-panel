@@ -54,6 +54,7 @@ class BacktestEngine
         $executionLog = [];
         $lastPrice = null;
         $entryTimestamp = null;
+        $entryReason = null;
         $startTimestamp = $trade->start_date instanceof \DateTimeInterface
             ? $trade->start_date->getTimestamp()
             : Carbon::parse($trade->start_date)->timestamp;
@@ -98,6 +99,7 @@ class BacktestEngine
                     $profit >= 0 ? $winningTrades++ : $losingTrades++;
                     $executionLog[] = [
                         'direction' => $positionDirection,
+                        'entry_reason' => $entryReason,
                         'entry_time' => $this->formatTimestamp($entryTimestamp),
                         'entry_price' => $entryPrice,
                         'entry_value' => $entryValue,
@@ -114,6 +116,7 @@ class BacktestEngine
                     $entryValue = null;
                     $entryFee = 0.0;
                     $entryTimestamp = null;
+                    $entryReason = null;
                 }
             }
 
@@ -158,6 +161,7 @@ class BacktestEngine
                     $positionDirection = $candidateDirection;
                     $entryPrice = $close;
                     $entryTimestamp = (int) $candle->timestamp;
+                    $entryReason = 'entry_rule';
                     break;
                 }
             }
@@ -177,6 +181,7 @@ class BacktestEngine
             $profit >= 0 ? $winningTrades++ : $losingTrades++;
             $executionLog[] = [
                 'direction' => $positionDirection,
+                'entry_reason' => $entryReason,
                 'entry_time' => $this->formatTimestamp($entryTimestamp),
                 'entry_price' => $entryPrice,
                 'entry_value' => $entryValue,
