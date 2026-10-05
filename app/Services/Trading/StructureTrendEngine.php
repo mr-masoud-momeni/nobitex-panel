@@ -171,7 +171,7 @@ class StructureTrendEngine
                             $emaDistance
                         );
 
-                        if ($emaDistance >= $minEmaDistancePercent) {
+                        if ($emaDistance > $domePeakDistance || $emaDistance > $minEmaDistancePercent) {
                             $domeMovedAway = true;
                         }
 
