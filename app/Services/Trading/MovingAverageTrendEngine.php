@@ -114,7 +114,11 @@ class MovingAverageTrendEngine
                     $pullbackDetected = true;
                 }
 
-                if ($lockedStructure !== null && $high > $lockedStructure) {
+                if (
+                    $lockedStructure !== null
+                    && $close > $lockedStructure
+                    && $close > $open
+                ) {
                     $structuralBreak = true;
                 }
 
@@ -135,7 +139,11 @@ class MovingAverageTrendEngine
                     $pullbackDetected = true;
                 }
 
-                if ($lockedStructure !== null && $low < $lockedStructure) {
+                if (
+                    $lockedStructure !== null
+                    && $close < $lockedStructure
+                    && $close < $open
+                ) {
                     $structuralBreak = true;
                 }
 
