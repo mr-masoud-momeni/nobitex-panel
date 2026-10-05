@@ -266,14 +266,14 @@ class StructureTrendEngine
                     $entrySignal = $pullbackDetected
                         && $close > $open
                         && $close > $ma
-                        && $this->emaSlopePositive($candlesBuffer, $maPeriod)
+                        && $this->emaSlopePositive($ma, $previousMa)
                         && $this->candleHeightPercent($high, $low) >= $minConfirmationCandlePercent
                         && ($breakoutLevel === null || $close >= $breakoutLevel);
                 } else {
                     $entrySignal = $pullbackDetected
                         && $close < $open
                         && $close < $ma
-                        && $this->emaSlopeNegative($candlesBuffer, $maPeriod)
+                        && $this->emaSlopeNegative($ma, $previousMa)
                         && $this->candleHeightPercent($high, $low) >= $minConfirmationCandlePercent
                         && ($breakoutLevel === null || $close <= $breakoutLevel);
                 }
