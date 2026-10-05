@@ -127,6 +127,8 @@
                                     <th>جهت</th>
                                     <th>برخورد اول با میانگین</th>
                                     <th>قله گنبد</th>
+                                    <th>کندل‌های خروج</th>
+                                    <th>کندل‌های برگشت</th>
                                     <th>فاصله قله از EMA</th>
                                     <th>برخورد دوم با میانگین</th>
                                 </tr>
@@ -152,6 +154,8 @@
                                             <br>
                                             <small>{{ isset($dome['peak_price']) ? number_format($dome['peak_price'], 2) : '—' }}</small>
                                         </td>
+                                        <td>{{ isset($dome['dome_candles']) ? $dome['dome_candles'] : '—' }}</td>
+                                        <td>{{ isset($dome['return_candles']) ? $dome['return_candles'] : '—' }}</td>
                                         <td>{{ isset($dome['peak_distance_percent']) ? number_format($dome['peak_distance_percent'], 3).'٪' : '—' }}</td>
                                         <td>
                                             {{ $dome['end_time_jalali'] ?? $dome['end_time'] ?? '—' }}
