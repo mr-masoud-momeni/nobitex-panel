@@ -115,13 +115,11 @@ class StructureTrendEngine
             $allowedShort = $direction === 'short' || $direction === 'both';
 
             // Inspection-only dome detector.
-            // A dome is NOT just an EMA crossing. It must have:
-            // 1) an initial EMA crossing,
-            // 2) at least N candles clearly on the other side of EMA,
-            // 3) a real expansion away from EMA,
-            // 4) at least M candles returning toward EMA,
-            // 5) a second EMA crossing that completes the dome.
-            // The same rules apply above and below the EMA.
+            // A valid dome is confirmed only after an outward leg and a return
+            // leg. The actual peak/trough is selected retrospectively from ALL
+            // candles between the two EMA interactions:
+            //   - below EMA: lowest close
+            //   - above EMA: highest close
             if ($domeCandidateDirection === null && $previousClose !== null && $previousEma !== null) {
                 if ($previousClose <= $previousEma && $close > $ma) {
                     $domeCandidateDirection = 'long';
@@ -150,21 +148,30 @@ class StructureTrendEngine
                 $onDomeSide = ($domeCandidateDirection === 'long' && $close > $ma)
                     || ($domeCandidateDirection === 'short' && $close < $ma);
 
-                $distanceExpanded = $emaDistance > $domePeakDistance;
-
                 if (!$domeReturning) {
                     if ($onDomeSide) {
                         $domeCandles++;
 
-                        if ($distanceExpanded) {
-                            $domePeakDistance = $emaDistance;
-                            $domePeakTimestamp = $timestamp;
+                        // Keep the true extreme of the dome. For an upper dome
+                        // it is the highest close; for a lower dome the lowest.
+                        $isMoreExtreme = ($domeCandidateDirection === 'long' && $close > $domePeakPrice)
+                            || ($domeCandidateDirection === 'short' && $close < $domePeakPrice);
+
+                        if ($isMoreExtreme) {
                             $domePeakPrice = $close;
+                            $domePeakTimestamp = $timestamp;
+                        }
+
+                        $domePeakDistance = max(
+                            $domePeakDistance,
+                            $emaDistance
+                        );
+
+                        if ($emaDistance >= $minEmaDistancePercent) {
                             $domeMovedAway = true;
                         }
 
-                        // The first meaningful shrink after a real expansion
-                        // starts the return leg. It does not complete the dome.
+                        // A meaningful decrease in distance starts the return leg.
                         if ($domeMovedAway
                             && $previousDistance !== null
                             && $emaDistance < $previousDistance
@@ -174,8 +181,7 @@ class StructureTrendEngine
                             $domeReturnCandles = 1;
                         }
                     } else {
-                        // A premature return before the minimum outward leg
-                        // invalidates this candidate. It was only a small EMA cross.
+                        // Crossed back too early: this was not a dome.
                         $domeCandidateDirection = null;
                         $domeStartTimestamp = null;
                         $domeStartPrice = null;
@@ -188,16 +194,28 @@ class StructureTrendEngine
                         $domeReturning = false;
                     }
                 } else {
-                    // Return leg: candles must keep moving back toward EMA.
-                    $movingTowardEma = $previousDistance !== null
-                        && $emaDistance < $previousDistance;
+                    // Keep updating the true extreme until the second EMA
+                    // interaction. This makes the displayed peak independent
+                    // of where the first pullback candle happened.
+                    if ($onDomeSide) {
+                        $domeCandles++;
 
-                    if ($onDomeSide && $movingTowardEma) {
-                        $domeReturnCandles++;
-                    } elseif ($onDomeSide && $emaDistance >= $previousDistance) {
-                        // A brief pause is allowed, but a new expansion means
-                        // the return leg has not actually completed yet.
-                        $domeReturnCandles = max(0, $domeReturnCandles - 1);
+                        $isMoreExtreme = ($domeCandidateDirection === 'long' && $close > $domePeakPrice)
+                            || ($domeCandidateDirection === 'short' && $close < $domePeakPrice);
+
+                        if ($isMoreExtreme) {
+                            $domePeakPrice = $close;
+                            $domePeakTimestamp = $timestamp;
+                        }
+
+                        $domePeakDistance = max($domePeakDistance, $emaDistance);
+
+                        $movingTowardEma = $previousDistance !== null
+                            && $emaDistance < $previousDistance;
+
+                        if ($movingTowardEma) {
+                            $domeReturnCandles++;
+                        }
                     }
 
                     $returnedToEma = ($domeCandidateDirection === 'long' && $close <= $ma)
@@ -225,6 +243,8 @@ class StructureTrendEngine
                             ];
                         }
 
+                        // The completed dome is consumed. The next dome must
+                        // begin with a fresh EMA crossing, not this same crossing.
                         $domeCandidateDirection = null;
                         $domeStartTimestamp = null;
                         $domeStartPrice = null;
