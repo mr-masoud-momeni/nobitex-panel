@@ -20,6 +20,12 @@
                             <small>Moving Average Trend</small>
                         </a>
                     </div>
+                    <div class="col-md-6" style="margin-top:15px;">
+                        <a href="{{ route('strategy.create', ['type' => 'structure_trend']) }}" class="btn btn-warning btn-block" style="padding:25px 10px;">
+                            <strong>استراتژی روند ساختاری</strong><br>
+                            <small>Structure + EMA + Pullback</small>
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
