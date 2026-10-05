@@ -263,9 +263,9 @@ class TradeController extends Controller
         $structureDebug = is_array($storedBacktestLog['structure_debug'] ?? null)
             ? $storedBacktestLog['structure_debug']
             : [];
-        $backtestLog = array_is_list($storedBacktestLog)
-            ? $storedBacktestLog
-            : (is_array($storedBacktestLog['executions'] ?? null) ? $storedBacktestLog['executions'] : []);
+        $backtestLog = isset($storedBacktestLog['executions']) && is_array($storedBacktestLog['executions'])
+            ? $storedBacktestLog['executions']
+            : $storedBacktestLog;
 
         foreach ($backtestLog as &$execution) {
             if (!empty($execution['entry_time'])) {
