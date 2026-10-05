@@ -20,6 +20,10 @@ class BacktestEngine
             return app(MovingAverageTrendEngine::class)->run($strategy, $trade, $candles);
         }
 
+        if (($strategy->strategy_type ?? 'generic') === 'structure_trend') {
+            return app(StructureTrendEngine::class)->run($strategy, $trade, $candles);
+        }
+
         $rules = $strategy->rules->sortBy('sort_order')->values();
         $direction = $strategy->direction ?: 'long';
 
