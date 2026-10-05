@@ -24,83 +24,47 @@
                     </div>
 
                     <div class="panel panel-default">
-                        <div class="panel-heading">ساختار بازار</div>
+                        <div class="panel-heading">ساختار و پولبک</div>
                         <div class="panel-body">
                             <div class="row">
                                 <div class="col-md-4">
-                                    <label>قدرت Swing</label>
-                                    <input type="number" name="config[structure_swing_strength]" class="form-control" min="2" max="10" step="1"
-                                           value="{{ old('config.structure_swing_strength', $strategy->config['structure_swing_strength'] ?? 3) }}" required>
-                                    <small class="text-muted">تعداد کندل‌های دو طرف برای تأیید سقف/کف.</small>
-                                </div>
-                                <div class="col-md-4">
-                                    <label>حداقل تغییر Swing (%)</label>
-                                    <input type="number" name="config[structure_min_swing_percent]" class="form-control" min="0" max="100" step="0.01"
-                                           value="{{ old('config.structure_min_swing_percent', $strategy->config['structure_min_swing_percent'] ?? 0.4) }}" required>
-                                    <small class="text-muted">نوسان‌های خیلی کوچک را از ساختار حذف می‌کند.</small>
-                                </div>
-                                <div class="col-md-4">
-                                    <label>بازه تشخیص Range (کندل)</label>
+                                    <label>تعداد کندل تشخیص Sideways</label>
                                     <input type="number" name="config[range_lookback_candles]" class="form-control" min="10" max="500" step="1"
                                            value="{{ old('config.range_lookback_candles', $strategy->config['range_lookback_candles'] ?? 30) }}" required>
+                                    <small class="text-muted">تعداد کندل‌هایی که برای تشخیص یک محدوده خنثی بررسی می‌شوند.</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <label>حداقل کندل حرکت بعد از Breakout</label>
+                                    <input type="number" name="config[min_move_candles]" class="form-control" min="1" max="20" step="1"
+                                           value="{{ old('config.min_move_candles', $strategy->config['min_move_candles'] ?? 2) }}" required>
+                                    <small class="text-muted">قبل از شروع پولبک باید حداقل این تعداد کندل در جهت شکست حرکت کنند.</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <label>حداقل کندل Pullback</label>
+                                    <input type="number" name="config[min_pullback_candles]" class="form-control" min="1" max="20" step="1"
+                                           value="{{ old('config.min_pullback_candles', $strategy->config['min_pullback_candles'] ?? 1) }}" required>
+                                    <small class="text-muted">پولبک می‌تواند فقط یک کندل باشد؛ برای روندهای قوی این مقدار مناسب است.</small>
                                 </div>
                             </div>
+
                             <div class="row" style="margin-top:15px;">
                                 <div class="col-md-4">
-                                    <label>حداکثر عرض Range (%)</label>
-                                    <input type="number" name="config[range_max_width_percent]" class="form-control" min="0.1" max="100" step="0.1"
-                                           value="{{ old('config.range_max_width_percent', $strategy->config['range_max_width_percent'] ?? 3) }}" required>
-                                    <small class="text-muted">اگر High تا Low این بازه کمتر از این مقدار باشد، بازار Range در نظر گرفته می‌شود.</small>
+                                    <label>حداقل اندازه کندل ورود (%)</label>
+                                    <input type="number" name="config[min_entry_candle_percent]" class="form-control" min="0" max="100" step="0.01"
+                                           value="{{ old('config.min_entry_candle_percent', $strategy->config['min_entry_candle_percent'] ?? 0.3) }}" required>
+                                    <small class="text-muted">اندازه بدنه کندل ورود؛ جلوی ورود با کندل بسیار ضعیف را می‌گیرد.</small>
                                 </div>
                                 <div class="col-md-4">
-                                    <label>بافر شکست (%)</label>
-                                    <input type="number" name="config[breakout_buffer_percent]" class="form-control" min="0" max="20" step="0.01"
-                                           value="{{ old('config.breakout_buffer_percent', $strategy->config['breakout_buffer_percent'] ?? 0.1) }}" required>
-                                    <small class="text-muted">برای جلوگیری از شکست‌های بسیار جزئی.</small>
+                                    <label>حداقل فاصله قیمت از EMA (%)</label>
+                                    <input type="number" name="config[min_ema_distance_percent]" class="form-control" min="0" max="100" step="0.01"
+                                           value="{{ old('config.min_ema_distance_percent', $strategy->config['min_ema_distance_percent'] ?? 0.2) }}" required>
+                                    <small class="text-muted">کندل ورود باید حداقل این فاصله را از EMA داشته باشد.</small>
                                 </div>
                                 <div class="col-md-4">
-                                    <label>حداکثر کندل تا پولبک</label>
-                                    <input type="number" name="config[pullback_max_bars]" class="form-control" min="1" max="50" step="1"
-                                           value="{{ old('config.pullback_max_bars', $strategy->config['pullback_max_bars'] ?? 8) }}" required>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="panel panel-default">
-                        <div class="panel-heading">میانگین متحرک به‌عنوان فیلتر</div>
-                        <div class="panel-body">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <label>نوع میانگین</label>
-                                    <select name="config[ma_type]" class="form-control">
-                                        <option value="ema" selected>EMA</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-6">
                                     <label>دوره EMA</label>
                                     <input type="number" name="config[ma_period]" class="form-control" min="1" max="1000" step="1"
                                            value="{{ old('config.ma_period', $strategy->config['ma_period'] ?? 20) }}" required>
-                                    <small class="text-muted">EMA روند را تشخیص نمی‌دهد؛ فقط جهت شکست و پولبک را تأیید می‌کند.</small>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="panel panel-default">
-                        <div class="panel-heading">پولبک و ورود</div>
-                        <div class="panel-body">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <label>محدوده Pullback (%)</label>
-                                    <input type="number" name="config[pullback_zone_percent]" class="form-control" min="0" max="100" step="0.01"
-                                           value="{{ old('config.pullback_zone_percent', $strategy->config['pullback_zone_percent'] ?? 0.5) }}" required>
-                                    <small class="text-muted">پولبک به EMA یا ناحیه شکست را پوشش می‌دهد.</small>
-                                </div>
-                                <div class="col-md-6">
-                                    <label>حداقل ارتفاع کندل تأیید (%)</label>
-                                    <input type="number" name="config[min_confirmation_candle_percent]" class="form-control" min="0" max="100" step="0.01"
-                                           value="{{ old('config.min_confirmation_candle_percent', $strategy->config['min_confirmation_candle_percent'] ?? 0.3) }}" required>
+                                    <small class="text-muted">EMA فقط فیلتر فاصله است و روند را تشخیص نمی‌دهد.</small>
                                 </div>
                             </div>
                         </div>
@@ -134,13 +98,16 @@
                                            value="{{ old('take_profit', $strategy->take_profit ?? '') }}">
                                 </div>
                             </div>
+
                             <div class="row" style="margin-top:15px;">
                                 <div class="col-md-6">
                                     <label>تعداد کندل خروج</label>
                                     <input type="number" name="config[exit_sequence_count]" class="form-control" min="2" max="20" step="1"
                                            value="{{ old('config.exit_sequence_count', $strategy->config['exit_sequence_count'] ?? 3) }}" required>
+                                    <small class="text-muted">بعد از هر Close جدید، شمارش از صفر شروع می‌شود؛ اگر این تعداد Close جدید ثبت نشود، خروج انجام می‌شود.</small>
                                 </div>
                             </div>
+
                             <div style="margin-top:15px;">
                                 <label>
                                     <input type="checkbox" name="is_active" value="1" {{ old('is_active', $strategy ? $strategy->is_active : true) ? 'checked' : '' }}>
