@@ -116,6 +116,58 @@
                     <div class="alert alert-info">پس از اجرای بک‌تست، جزئیات ورود و خروج اینجا نمایش داده می‌شود.</div>
                 @endif
 
+                @if(($trade->strategy->strategy_type ?? null) === 'structure_trend' && !empty($structureDebug['domes']))
+                    <hr>
+                    <h4>گنبدهای شناسایی‌شده</h4>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>جهت</th>
+                                    <th>برخورد اول با میانگین</th>
+                                    <th>قله گنبد</th>
+                                    <th>فاصله قله از EMA</th>
+                                    <th>برخورد دوم با میانگین</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($structureDebug['domes'] as $index => $dome)
+                                    <tr>
+                                        <td>{{ $index + 1 }}</td>
+                                        <td>
+                                            @if(($dome['direction'] ?? null) === 'long')
+                                                <span class="label label-success">بالا</span>
+                                            @else
+                                                <span class="label label-danger">پایین</span>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            {{ $dome['start_time_jalali'] ?? $dome['start_time'] ?? '—' }}
+                                            <br>
+                                            <small>{{ isset($dome['start_price']) ? number_format($dome['start_price'], 2) : '—' }}</small>
+                                        </td>
+                                        <td>
+                                            {{ $dome['peak_time_jalali'] ?? $dome['peak_time'] ?? '—' }}
+                                            <br>
+                                            <small>{{ isset($dome['peak_price']) ? number_format($dome['peak_price'], 2) : '—' }}</small>
+                                        </td>
+                                        <td>{{ isset($dome['peak_distance_percent']) ? number_format($dome['peak_distance_percent'], 3).'٪' : '—' }}</td>
+                                        <td>
+                                            {{ $dome['end_time_jalali'] ?? $dome['end_time'] ?? '—' }}
+                                            <br>
+                                            <small>{{ isset($dome['end_price']) ? number_format($dome['end_price'], 2) : '—' }}</small>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @elseif(($trade->strategy->strategy_type ?? null) === 'structure_trend' && $trade->status === 'completed')
+                    <hr>
+                    <div class="alert alert-info">در این بازه گنبدی با دو برخورد به میانگین شناسایی نشد.</div>
+                @endif
+
                 <h4>استراتژی مورد استفاده</h4>
                 <p>{{ $trade->strategy->description ?: 'بدون توضیحات' }}</p>
                 <p>
