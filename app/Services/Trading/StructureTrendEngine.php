@@ -64,6 +64,17 @@ class StructureTrendEngine
         $losingTrades = 0;
         $executionLog = [];
 
+        // Setup instrumentation: tells us exactly where potential setups are filtered.
+        $debug = [
+            'range_detected' => 0,
+            'breakout_detected' => 0,
+            'impulse_completed' => 0,
+            'pullback_started' => 0,
+            'rebreak_detected' => 0,
+            'entry_filters_passed' => 0,
+            'entries' => 0,
+        ];
+
         foreach ($candles as $candle) {
             $close = (float) $candle->close;
             $open = (float) $candle->open;
@@ -92,26 +103,33 @@ class StructureTrendEngine
             }
 
             // Detect the range from the candles BEFORE the current candle.
-            $range = $this->detectRange($candlesBuffer, $rangeLookback, $rangeMaxWidthPercent);
+            // Do not overwrite an active setup with a newer range.
+            $range = null;
+            if ($quantity <= 0 && $setupDirection === null) {
+                $range = $this->detectRange($candlesBuffer, $rangeLookback, $rangeMaxWidthPercent);
 
-            if ($range !== null && $quantity <= 0) {
-                $setupDirection = null;
-                $breakoutLevel = null;
-                $breakoutTimestamp = null;
-                $impulseCount = 0;
-                $pullbackCount = 0;
-                $pullbackStarted = false;
-
-                if (($direction === 'long' || $direction === 'both') && $close > $range['high']) {
-                    $setupDirection = 'long';
-                    $breakoutLevel = $high;
-                    $breakoutTimestamp = $timestamp;
-                } elseif (($direction === 'short' || $direction === 'both') && $close < $range['low']) {
-                    $setupDirection = 'short';
-                    $breakoutLevel = $low;
-                    $breakoutTimestamp = $timestamp;
+                if ($range !== null) {
+                    $debug['range_detected']++;
                 }
-            } elseif ($quantity <= 0 && $setupDirection !== null && $breakoutLevel !== null) {
+
+                if ($range !== null && ($direction === 'long' || $direction === 'both') && $close > $range['high']) {
+                    $setupDirection = 'long';
+
+                    // Re-break is against the original range resistance, not the
+                    // breakout candle's wick. This matches the visual concept:
+                    // break -> pullback -> break of the range again.
+                    $breakoutLevel = $range['high'];
+                    $breakoutTimestamp = $timestamp;
+                    $debug['breakout_detected']++;
+                } elseif ($range !== null && ($direction === 'short' || $direction === 'both') && $close < $range['low']) {
+                    $setupDirection = 'short';
+                    $breakoutLevel = $range['low'];
+                    $breakoutTimestamp = $timestamp;
+                    $debug['breakout_detected']++;
+                }
+            }
+
+            if ($quantity <= 0 && $setupDirection !== null && $breakoutLevel !== null) {
                 $isDirectionalMove = $setupDirection === 'long'
                     ? $close > $previousClose
                     : $close < $previousClose;
@@ -123,9 +141,14 @@ class StructureTrendEngine
                 if (!$pullbackStarted) {
                     if ($isDirectionalMove) {
                         $impulseCount++;
+
+                        if ($impulseCount === $minMoveCandles) {
+                            $debug['impulse_completed']++;
+                        }
                     } elseif ($isPullbackMove && $impulseCount >= $minMoveCandles) {
                         $pullbackStarted = true;
                         $pullbackCount = 1;
+                        $debug['pullback_started']++;
                     }
 
                     // A return through the breakout level before the pullback is
@@ -276,7 +299,12 @@ class StructureTrendEngine
                     && $candleSizeOk
                     && $emaDistanceOk;
 
+                if ($reBreak && $pullbackCount >= $minPullbackCandles) {
+                    $debug['rebreak_detected']++;
+                }
+
                 if ($entrySignal) {
+                    $debug['entry_filters_passed']++;
                     $notional = $this->positionNotional(
                         $cash,
                         (float) ($strategy->risk_percent ?? 0),
@@ -307,6 +335,7 @@ class StructureTrendEngine
                         }
 
                         if ($quantity > 0) {
+                            $debug['entries']++;
                             $positionDirection = $setupDirection;
                             $entryPrice = $close;
                             $entryTimestamp = $timestamp;
@@ -374,6 +403,7 @@ class StructureTrendEngine
             'losing_trades' => $losingTrades,
             'final_capital' => $cash,
             'execution_log' => $executionLog,
+            'structure_debug' => $debug,
         ];
     }
 
