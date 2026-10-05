@@ -13,17 +13,13 @@ class StructureTrendEngine
     {
         $config = is_array($strategy->config) ? $strategy->config : [];
 
-        $rangeLookback = max(10, min(500, (int) ($config['range_lookback_candles'] ?? 30)));
-        $minMoveCandles = max(1, min(20, (int) ($config['min_move_candles'] ?? 2)));
-        $minPullbackCandles = max(1, min(20, (int) ($config['min_pullback_candles'] ?? 1)));
-        $minEntryCandlePercent = max(0.0, (float) ($config['min_entry_candle_percent'] ?? 0.3));
-        $minEmaDistancePercent = max(0.0, (float) ($config['min_ema_distance_percent'] ?? 0.2));
         $maPeriod = max(1, min(1000, (int) ($config['ma_period'] ?? 20)));
+        $minEmaDistancePercent = max(0.0, (float) ($config['min_ema_distance_percent'] ?? 0.5));
+        $minDomeCandles = max(2, min(20, (int) ($config['min_dome_candles'] ?? 3)));
+        $minPullbackCandles = max(1, min(20, (int) ($config['min_pullback_candles'] ?? 2)));
+        $minPullbackSlopePercent = max(0.0, (float) ($config['min_pullback_slope_percent'] ?? 0.05));
+        $minEntryCandlePercent = max(0.0, (float) ($config['min_entry_candle_percent'] ?? 0.3));
         $sequenceLength = max(2, min(20, (int) ($config['exit_sequence_count'] ?? 3)));
-
-        // Sideways width is intentionally an internal rule, not a user parameter.
-        // The visible parameter is only how many candles must form the range.
-        $rangeMaxWidthPercent = 3.0;
 
         $direction = $strategy->direction ?: 'long';
         $ema = new Ema($maPeriod);
@@ -39,16 +35,14 @@ class StructureTrendEngine
         $entryTimestamp = null;
         $entryReason = null;
 
-        $candlesBuffer = [];
-
-        // Setup state:
-        // range -> breakout -> impulse -> pullback -> re-break/entry.
+        // Pullback "dome" state:
+        // far from EMA -> dome/extension -> distance starts shrinking -> confirmation.
         $setupDirection = null;
-        $breakoutLevel = null;
-        $breakoutTimestamp = null;
-        $impulseCount = 0;
+        $domeCount = 0;
+        $peakDistance = null;
         $pullbackCount = 0;
-        $pullbackStarted = false;
+        $pullbackDistanceStart = null;
+        $previousDistance = null;
 
         // Exit state: close-based reference high/low.
         $sequenceCount = 0;
@@ -57,20 +51,17 @@ class StructureTrendEngine
 
         $lastPrice = null;
         $lastTimestamp = null;
-        $previousClose = null;
 
         $totalTrades = 0;
         $winningTrades = 0;
         $losingTrades = 0;
         $executionLog = [];
 
-        // Setup instrumentation: tells us exactly where potential setups are filtered.
         $debug = [
-            'range_detected' => 0,
-            'breakout_detected' => 0,
-            'impulse_completed' => 0,
+            'dome_detected' => 0,
             'pullback_started' => 0,
-            'rebreak_detected' => 0,
+            'pullback_completed' => 0,
+            'confirmation_detected' => 0,
             'entry_filters_passed' => 0,
             'entries' => 0,
         ];
@@ -83,109 +74,168 @@ class StructureTrendEngine
             $timestamp = (int) $candle->timestamp;
             $ma = $ema->update($close);
 
-            $candlesBuffer[] = [
-                'open' => $open,
-                'high' => $high,
-                'low' => $low,
-                'close' => $close,
-                'timestamp' => $timestamp,
-            ];
-
-            if (count($candlesBuffer) > $rangeLookback + 2) {
-                array_shift($candlesBuffer);
-            }
-
-            if ($ma === null || $previousClose === null) {
+            if ($ma === null || $ma <= 0) {
                 $lastPrice = $close;
                 $lastTimestamp = $timestamp;
-                $previousClose = $close;
                 continue;
             }
 
-            // Detect the range from the candles BEFORE the current candle.
-            // Do not overwrite an active setup with a newer range.
-            $range = null;
-            if ($quantity <= 0 && $setupDirection === null) {
-                $range = $this->detectRange($candlesBuffer, $rangeLookback, $rangeMaxWidthPercent);
+            $emaDistance = (abs($close - $ma) / $ma) * 100;
+            $aboveEma = $close > $ma;
+            $belowEma = $close < $ma;
 
-                if ($range !== null) {
-                    $debug['range_detected']++;
-                }
+            // Build/track the dome only while no position is open.
+            if ($quantity <= 0) {
+                $allowedLong = $direction === 'long' || $direction === 'both';
+                $allowedShort = $direction === 'short' || $direction === 'both';
 
-                if ($range !== null && ($direction === 'long' || $direction === 'both') && $close > $range['high']) {
-                    $setupDirection = 'long';
-
-                    // Re-break is against the original range resistance, not the
-                    // breakout candle's wick. This matches the visual concept:
-                    // break -> pullback -> break of the range again.
-                    $breakoutLevel = $range['high'];
-                    $breakoutTimestamp = $timestamp;
-                    $debug['breakout_detected']++;
-                } elseif ($range !== null && ($direction === 'short' || $direction === 'both') && $close < $range['low']) {
-                    $setupDirection = 'short';
-                    $breakoutLevel = $range['low'];
-                    $breakoutTimestamp = $timestamp;
-                    $debug['breakout_detected']++;
-                }
-            }
-
-            if ($quantity <= 0 && $setupDirection !== null && $breakoutLevel !== null) {
-                $isDirectionalMove = $setupDirection === 'long'
-                    ? $close > $previousClose
-                    : $close < $previousClose;
-
-                $isPullbackMove = $setupDirection === 'long'
-                    ? $close < $previousClose
-                    : $close > $previousClose;
-
-                if (!$pullbackStarted) {
-                    if ($isDirectionalMove) {
-                        $impulseCount++;
-
-                        if ($impulseCount === $minMoveCandles) {
-                            $debug['impulse_completed']++;
+                if ($setupDirection === null) {
+                    if ($emaDistance >= $minEmaDistancePercent) {
+                        if ($aboveEma && $allowedLong) {
+                            $setupDirection = 'long';
+                            $domeCount = 1;
+                            $peakDistance = $emaDistance;
+                            $pullbackCount = 0;
+                            $pullbackDistanceStart = null;
+                        } elseif ($belowEma && $allowedShort) {
+                            $setupDirection = 'short';
+                            $domeCount = 1;
+                            $peakDistance = $emaDistance;
+                            $pullbackCount = 0;
+                            $pullbackDistanceStart = null;
                         }
-                    } elseif ($isPullbackMove && $impulseCount >= $minMoveCandles) {
-                        $pullbackStarted = true;
-                        $pullbackCount = 1;
-                        $debug['pullback_started']++;
-                    }
-
-                    // A return through the breakout level before the pullback is
-                    // complete invalidates the setup.
-                    if (
-                        ($setupDirection === 'long' && $close < $breakoutLevel)
-                        || ($setupDirection === 'short' && $close > $breakoutLevel)
-                    ) {
-                        $this->resetSetup(
-                            $setupDirection,
-                            $breakoutLevel,
-                            $breakoutTimestamp,
-                            $impulseCount,
-                            $pullbackCount,
-                            $pullbackStarted
-                        );
                     }
                 } else {
-                    if ($isPullbackMove) {
-                        $pullbackCount++;
-                    } elseif ($isDirectionalMove && $pullbackCount >= $minPullbackCandles) {
-                        // This is the first candle capable of re-breaking the
-                        // breakout candle's extreme.
-                    }
+                    $directionStillValid = $setupDirection === 'long' ? $aboveEma : $belowEma;
 
-                    if (
-                        ($setupDirection === 'long' && $close < $breakoutLevel)
-                        || ($setupDirection === 'short' && $close > $breakoutLevel)
-                    ) {
-                        $this->resetSetup(
+                    if (!$directionStillValid) {
+                        $this->resetDome(
                             $setupDirection,
-                            $breakoutLevel,
-                            $breakoutTimestamp,
-                            $impulseCount,
+                            $domeCount,
+                            $peakDistance,
                             $pullbackCount,
-                            $pullbackStarted
+                            $pullbackDistanceStart
                         );
+                    } elseif ($pullbackCount === 0) {
+                        if ($peakDistance === null || $emaDistance >= $peakDistance) {
+                            $peakDistance = $emaDistance;
+                            $domeCount++;
+                        } else {
+                            // The distance has turned down after building an extension.
+                            if ($domeCount >= $minDomeCandles) {
+                                $pullbackCount = 1;
+                                $pullbackDistanceStart = $emaDistance;
+                                $debug['dome_detected']++;
+                                $debug['pullback_started']++;
+                            } else {
+                                // Too short to be a dome; keep the newest extension
+                                // as the beginning of a fresh candidate.
+                                $domeCount = 1;
+                                $peakDistance = $emaDistance;
+                            }
+                        }
+                    } else {
+                        $distanceDrop = $previousDistance !== null
+                            ? $previousDistance - $emaDistance
+                            : 0.0;
+
+                        if ($distanceDrop >= $minPullbackSlopePercent) {
+                            $pullbackCount++;
+                        } elseif ($emaDistance >= $previousDistance) {
+                            // Distance stopped falling. If enough pullback candles
+                            // exist, this candle is the confirmation candidate.
+                            if ($pullbackCount >= $minPullbackCandles) {
+                                $debug['pullback_completed']++;
+
+                                $candleDirectionOk = $setupDirection === 'long'
+                                    ? $close > $open
+                                    : $close < $open;
+
+                                $distanceTurnsBack = $emaDistance > $previousDistance;
+                                $candleSizeOk = $this->candleBodyPercent($open, $close) >= $minEntryCandlePercent;
+                                $emaDistanceOk = $emaDistance >= $minEmaDistancePercent;
+
+                                if ($candleDirectionOk && $distanceTurnsBack && $candleSizeOk && $emaDistanceOk) {
+                                    $debug['confirmation_detected']++;
+                                    $debug['entry_filters_passed']++;
+
+                                    $notional = $this->positionNotional(
+                                        $cash,
+                                        (float) ($strategy->risk_percent ?? 0),
+                                        (float) ($strategy->stop_loss ?? 0)
+                                    );
+
+                                    if ($notional > 0 && $close > 0) {
+                                        $quantity = $notional / $close;
+                                        $entryFee = $notional * $feeRate;
+                                        $entryValue = $setupDirection === 'long' ? $notional + $entryFee : $notional;
+
+                                        if ($setupDirection === 'long') {
+                                            if ($entryValue > $cash) {
+                                                $quantity = $cash / ($close * (1 + $feeRate));
+                                                $notional = $quantity * $close;
+                                                $entryFee = $notional * $feeRate;
+                                                $entryValue = $notional + $entryFee;
+                                            }
+                                            $cash -= $entryValue;
+                                        } else {
+                                            if ($entryFee > $cash) {
+                                                $quantity = $feeRate > 0 ? $cash / ($close * $feeRate) : 0;
+                                                $notional = $quantity * $close;
+                                                $entryFee = $notional * $feeRate;
+                                                $entryValue = $notional;
+                                            }
+                                            $cash -= $entryFee;
+                                        }
+
+                                        if ($quantity > 0) {
+                                            $debug['entries']++;
+                                            $positionDirection = $setupDirection;
+                                            $entryPrice = $close;
+                                            $entryTimestamp = $timestamp;
+                                            $entryReason = 'ema_dome_pullback_confirmation';
+                                            $sequenceCount = 0;
+                                            $referenceHigh = $close;
+                                            $referenceLow = $close;
+
+                                            $this->resetDome(
+                                                $setupDirection,
+                                                $domeCount,
+                                                $peakDistance,
+                                                $pullbackCount,
+                                                $pullbackDistanceStart
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+
+                            if ($quantity <= 0) {
+                                // The pullback failed to produce a valid confirmation.
+                                // Start over from the current distance if it is still
+                                // far enough from EMA.
+                                if ($emaDistance >= $minEmaDistancePercent) {
+                                    $domeCount = 1;
+                                    $peakDistance = $emaDistance;
+                                    $pullbackCount = 0;
+                                    $pullbackDistanceStart = null;
+                                } else {
+                                    $this->resetDome(
+                                        $setupDirection,
+                                        $domeCount,
+                                        $peakDistance,
+                                        $pullbackCount,
+                                        $pullbackDistanceStart
+                                    );
+                                }
+                            }
+                        } else {
+                            // Pullback continues. A strong expansion away from EMA
+                            // updates the dome peak and requires a new pullback.
+                            if ($emaDistance > $peakDistance) {
+                                $peakDistance = $emaDistance;
+                            }
+                        }
                     }
                 }
             }
@@ -277,88 +327,9 @@ class StructureTrendEngine
                 }
             }
 
-            // Entry is only possible after:
-            // breakout -> minimum directional candles -> minimum pullback candles
-            // -> close breaks the breakout candle's high/low again.
-            if ($quantity <= 0 && $setupDirection !== null && $breakoutLevel !== null && $pullbackStarted) {
-                $reBreak = $setupDirection === 'long'
-                    ? $close > $breakoutLevel
-                    : $close < $breakoutLevel;
-
-                $candleDirectionOk = $setupDirection === 'long'
-                    ? $close > $open
-                    : $close < $open;
-
-                $candleSizeOk = $this->candleBodyPercent($open, $close) >= $minEntryCandlePercent;
-                $emaDistanceOk = $ma > 0
-                    && (abs($close - $ma) / $ma) * 100 >= $minEmaDistancePercent;
-
-                $entrySignal = $pullbackCount >= $minPullbackCandles
-                    && $reBreak
-                    && $candleDirectionOk
-                    && $candleSizeOk
-                    && $emaDistanceOk;
-
-                if ($reBreak && $pullbackCount >= $minPullbackCandles) {
-                    $debug['rebreak_detected']++;
-                }
-
-                if ($entrySignal) {
-                    $debug['entry_filters_passed']++;
-                    $notional = $this->positionNotional(
-                        $cash,
-                        (float) ($strategy->risk_percent ?? 0),
-                        (float) ($strategy->stop_loss ?? 0)
-                    );
-
-                    if ($notional > 0 && $close > 0) {
-                        $quantity = $notional / $close;
-                        $entryFee = $notional * $feeRate;
-                        $entryValue = $setupDirection === 'long' ? $notional + $entryFee : $notional;
-
-                        if ($setupDirection === 'long') {
-                            if ($entryValue > $cash) {
-                                $quantity = $cash / ($close * (1 + $feeRate));
-                                $notional = $quantity * $close;
-                                $entryFee = $notional * $feeRate;
-                                $entryValue = $notional + $entryFee;
-                            }
-                            $cash -= $entryValue;
-                        } else {
-                            if ($entryFee > $cash) {
-                                $quantity = $feeRate > 0 ? $cash / ($close * $feeRate) : 0;
-                                $notional = $quantity * $close;
-                                $entryFee = $notional * $feeRate;
-                                $entryValue = $notional;
-                            }
-                            $cash -= $entryFee;
-                        }
-
-                        if ($quantity > 0) {
-                            $debug['entries']++;
-                            $positionDirection = $setupDirection;
-                            $entryPrice = $close;
-                            $entryTimestamp = $timestamp;
-                            $entryReason = 'range_breakout_pullback_rebreak';
-                            $sequenceCount = 0;
-                            $referenceHigh = $close;
-                            $referenceLow = $close;
-
-                            // One setup produces one entry.
-                            $setupDirection = null;
-                            $breakoutLevel = null;
-                            $breakoutTimestamp = null;
-                            $impulseCount = 0;
-                            $pullbackCount = 0;
-                            $pullbackStarted = false;
-                        }
-                    }
-                }
-            }
-
+            $previousDistance = $emaDistance;
             $lastPrice = $close;
             $lastTimestamp = $timestamp;
-            $previousClose = $close;
         }
 
         if ($quantity > 0 && $lastPrice !== null && $positionDirection !== null) {
@@ -407,38 +378,18 @@ class StructureTrendEngine
         ];
     }
 
-    private function detectRange(array $candles, int $lookback, float $maxWidthPercent): ?array
-    {
-        // Exclude the current candle: the last item is the candle being evaluated.
-        if (count($candles) < $lookback + 1) {
-            return null;
-        }
-
-        $sample = array_slice($candles, -($lookback + 1), $lookback);
-        $high = max(array_column($sample, 'high'));
-        $low = min(array_column($sample, 'low'));
-
-        if ($low <= 0 || (($high - $low) / $low) * 100 > $maxWidthPercent) {
-            return null;
-        }
-
-        return ['high' => $high, 'low' => $low];
-    }
-
-    private function resetSetup(
+    private function resetDome(
         ?string &$direction,
-        ?float &$level,
-        ?int &$timestamp,
-        int &$impulseCount,
+        int &$domeCount,
+        ?float &$peakDistance,
         int &$pullbackCount,
-        bool &$pullbackStarted
+        ?float &$pullbackDistanceStart
     ): void {
         $direction = null;
-        $level = null;
-        $timestamp = null;
-        $impulseCount = 0;
+        $domeCount = 0;
+        $peakDistance = null;
         $pullbackCount = 0;
-        $pullbackStarted = false;
+        $pullbackDistanceStart = null;
     }
 
     private function candleBodyPercent(float $open, float $close): float
