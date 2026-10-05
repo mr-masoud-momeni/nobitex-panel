@@ -398,11 +398,11 @@ class StructureTrendEngine
         }
 
         if ($isHigh && $this->isMeaningfulSwing($candidate['high'], $highs, $minSwingPercent)) {
-            $this->appendSwing($highs, $candidate['high'], $candidateIndex);
+            $this->appendSwing($highs, $candidate['high'], $candidate['timestamp']);
         }
 
         if ($isLow && $this->isMeaningfulSwing($candidate['low'], $lows, $minSwingPercent)) {
-            $this->appendSwing($lows, $candidate['low'], $candidateIndex);
+            $this->appendSwing($lows, $candidate['low'], $candidate['timestamp']);
         }
     }
 
