@@ -35,13 +35,28 @@ class StructureTrendEngine
         $entryTimestamp = null;
         $entryReason = null;
 
-        // Pullback "dome" state:
-        // far from EMA -> dome/extension -> distance starts shrinking -> confirmation.
+        /*
+         * Setup state:
+         *
+         * 1. A close crosses the EMA -> activate a flag.
+         * 2. Price must move far enough from the EMA.
+         * 3. That distance must remain extended for N candles.
+         * 4. Distance starts shrinking -> pullback begins.
+         * 5. After M meaningful pullback candles, wait for a confirmation candle.
+         * 6. If confirmation fails, keep waiting. Do not start another dome.
+         * 7. Only a new EMA crossing cancels the whole setup and starts a new one.
+         */
         $setupDirection = null;
+        $domeActive = false;
         $domeCount = 0;
         $peakDistance = null;
+        $pullbackStarted = false;
         $pullbackCount = 0;
-        $pullbackDistanceStart = null;
+        $waitingConfirmation = false;
+
+        // Previous candle/EMA are needed to detect actual crossings.
+        $previousClose = null;
+        $previousEma = null;
         $previousDistance = null;
 
         // Exit state: close-based reference high/low.
@@ -58,10 +73,12 @@ class StructureTrendEngine
         $executionLog = [];
 
         $debug = [
+            'ema_crosses' => 0,
             'dome_detected' => 0,
             'pullback_started' => 0,
             'pullback_completed' => 0,
             'confirmation_detected' => 0,
+            'confirmation_rejected' => 0,
             'entry_filters_passed' => 0,
             'entries' => 0,
         ];
@@ -81,159 +98,189 @@ class StructureTrendEngine
             }
 
             $emaDistance = (abs($close - $ma) / $ma) * 100;
-            $aboveEma = $close > $ma;
-            $belowEma = $close < $ma;
+            $allowedLong = $direction === 'long' || $direction === 'both';
+            $allowedShort = $direction === 'short' || $direction === 'both';
 
-            // Build/track the dome only while no position is open.
-            if ($quantity <= 0) {
-                $allowedLong = $direction === 'long' || $direction === 'both';
-                $allowedShort = $direction === 'short' || $direction === 'both';
+            $crossedUp = $previousClose !== null
+                && $previousEma !== null
+                && $previousClose <= $previousEma
+                && $close > $ma;
 
-                if ($setupDirection === null) {
-                    if ($emaDistance >= $minEmaDistancePercent) {
-                        if ($aboveEma && $allowedLong) {
-                            $setupDirection = 'long';
-                            $domeCount = 1;
-                            $peakDistance = $emaDistance;
-                            $pullbackCount = 0;
-                            $pullbackDistanceStart = null;
-                        } elseif ($belowEma && $allowedShort) {
-                            $setupDirection = 'short';
-                            $domeCount = 1;
-                            $peakDistance = $emaDistance;
-                            $pullbackCount = 0;
-                            $pullbackDistanceStart = null;
-                        }
-                    }
+            $crossedDown = $previousClose !== null
+                && $previousEma !== null
+                && $previousClose >= $previousEma
+                && $close < $ma;
+
+            /*
+             * A new EMA crossing is the only event that replaces an old setup.
+             * This is intentional: once a dome/pullback is identified, a failed
+             * confirmation must not immediately create another setup on the same side.
+             */
+            if ($quantity <= 0 && ($crossedUp || $crossedDown)) {
+                $newDirection = $crossedUp ? 'long' : 'short';
+                $directionAllowed = $newDirection === 'long' ? $allowedLong : $allowedShort;
+
+                if ($directionAllowed) {
+                    $setupDirection = $newDirection;
+                    $domeActive = false;
+                    $domeCount = 0;
+                    $peakDistance = 0.0;
+                    $pullbackStarted = false;
+                    $pullbackCount = 0;
+                    $waitingConfirmation = false;
+                    $debug['ema_crosses']++;
                 } else {
-                    $directionStillValid = $setupDirection === 'long' ? $aboveEma : $belowEma;
+                    $this->resetSetup(
+                        $setupDirection,
+                        $domeActive,
+                        $domeCount,
+                        $peakDistance,
+                        $pullbackStarted,
+                        $pullbackCount,
+                        $waitingConfirmation
+                    );
+                }
+            }
 
-                    if (!$directionStillValid) {
-                        $this->resetDome(
-                            $setupDirection,
-                            $domeCount,
-                            $peakDistance,
-                            $pullbackCount,
-                            $pullbackDistanceStart
-                        );
-                    } elseif ($pullbackCount === 0) {
-                        if ($peakDistance === null || $emaDistance >= $peakDistance) {
+            // Build the setup only while no position is open.
+            if ($quantity <= 0 && $setupDirection !== null) {
+                $directionStillValid = $setupDirection === 'long' ? $close > $ma : $close < $ma;
+
+                // Crossing back through EMA cancels the setup.
+                if (!$directionStillValid) {
+                    $this->resetSetup(
+                        $setupDirection,
+                        $domeActive,
+                        $domeCount,
+                        $peakDistance,
+                        $pullbackStarted,
+                        $pullbackCount,
+                        $waitingConfirmation
+                    );
+                } elseif (!$waitingConfirmation) {
+                    if (!$domeActive) {
+                        // The EMA crossing has activated the flag, but the dome
+                        // only starts once the configured distance is reached.
+                        if ($emaDistance >= $minEmaDistancePercent) {
+                            $domeActive = true;
+                            $domeCount = 1;
                             $peakDistance = $emaDistance;
-                            $domeCount++;
-                        } else {
-                            // The distance has turned down after building an extension.
-                            if ($domeCount >= $minDomeCandles) {
+                        }
+                    } elseif (!$pullbackStarted) {
+                        // Keep extending the dome while distance is stable/increasing.
+                        if ($emaDistance >= $minEmaDistancePercent) {
+                            if ($peakDistance === null || $emaDistance >= $peakDistance) {
+                                $peakDistance = $emaDistance;
+                                $domeCount++;
+                            } elseif ($previousDistance !== null
+                                && ($previousDistance - $emaDistance) >= $minPullbackSlopePercent
+                                && $domeCount >= $minDomeCandles
+                            ) {
+                                // Distance has turned down after a sufficiently
+                                // long extension: the dome is complete.
+                                $pullbackStarted = true;
                                 $pullbackCount = 1;
-                                $pullbackDistanceStart = $emaDistance;
                                 $debug['dome_detected']++;
                                 $debug['pullback_started']++;
-                            } else {
-                                // Too short to be a dome; keep the newest extension
-                                // as the beginning of a fresh candidate.
-                                $domeCount = 1;
-                                $peakDistance = $emaDistance;
                             }
+                        } elseif ($domeCount >= $minDomeCandles
+                            && $previousDistance !== null
+                            && ($previousDistance - $emaDistance) >= $minPullbackSlopePercent
+                        ) {
+                            $pullbackStarted = true;
+                            $pullbackCount = 1;
+                            $debug['dome_detected']++;
+                            $debug['pullback_started']++;
                         }
                     } else {
+                        // Pullback: count only candles with a meaningful decrease
+                        // in distance from EMA.
                         $distanceDrop = $previousDistance !== null
                             ? $previousDistance - $emaDistance
                             : 0.0;
 
                         if ($distanceDrop >= $minPullbackSlopePercent) {
                             $pullbackCount++;
-                        } elseif ($emaDistance >= $previousDistance) {
-                            // Distance stopped falling. If enough pullback candles
-                            // exist, this candle is the confirmation candidate.
-                            if ($pullbackCount >= $minPullbackCandles) {
-                                $debug['pullback_completed']++;
+                        }
 
-                                $candleDirectionOk = $setupDirection === 'long'
-                                    ? $close > $open
-                                    : $close < $open;
+                        // Once enough pullback candles exist, an expansion away
+                        // from EMA is the confirmation candidate.
+                        $distanceTurnsBack = $previousDistance !== null
+                            && $emaDistance > $previousDistance;
 
-                                $distanceTurnsBack = $emaDistance > $previousDistance;
-                                $candleSizeOk = $this->candleBodyPercent($open, $close) >= $minEntryCandlePercent;
-                                $emaDistanceOk = $emaDistance >= $minEmaDistancePercent;
+                        if ($pullbackCount >= $minPullbackCandles && $distanceTurnsBack) {
+                            $debug['pullback_completed']++;
+                            $debug['confirmation_detected']++;
 
-                                if ($candleDirectionOk && $distanceTurnsBack && $candleSizeOk && $emaDistanceOk) {
-                                    $debug['confirmation_detected']++;
-                                    $debug['entry_filters_passed']++;
+                            $candleDirectionOk = $setupDirection === 'long'
+                                ? $close > $open
+                                : $close < $open;
 
-                                    $notional = $this->positionNotional(
-                                        $cash,
-                                        (float) ($strategy->risk_percent ?? 0),
-                                        (float) ($strategy->stop_loss ?? 0)
-                                    );
+                            $candleSizeOk = $this->candleBodyPercent($open, $close) >= $minEntryCandlePercent;
+                            $emaDistanceOk = $emaDistance >= $minEmaDistancePercent;
 
-                                    if ($notional > 0 && $close > 0) {
-                                        $quantity = $notional / $close;
-                                        $entryFee = $notional * $feeRate;
-                                        $entryValue = $setupDirection === 'long' ? $notional + $entryFee : $notional;
+                            if ($candleDirectionOk && $candleSizeOk && $emaDistanceOk) {
+                                $debug['entry_filters_passed']++;
 
-                                        if ($setupDirection === 'long') {
-                                            if ($entryValue > $cash) {
-                                                $quantity = $cash / ($close * (1 + $feeRate));
-                                                $notional = $quantity * $close;
-                                                $entryFee = $notional * $feeRate;
-                                                $entryValue = $notional + $entryFee;
-                                            }
-                                            $cash -= $entryValue;
-                                        } else {
-                                            if ($entryFee > $cash) {
-                                                $quantity = $feeRate > 0 ? $cash / ($close * $feeRate) : 0;
-                                                $notional = $quantity * $close;
-                                                $entryFee = $notional * $feeRate;
-                                                $entryValue = $notional;
-                                            }
-                                            $cash -= $entryFee;
+                                $notional = $this->positionNotional(
+                                    $cash,
+                                    (float) ($strategy->risk_percent ?? 0),
+                                    (float) ($strategy->stop_loss ?? 0)
+                                );
+
+                                if ($notional > 0 && $close > 0) {
+                                    $quantity = $notional / $close;
+                                    $entryFee = $notional * $feeRate;
+                                    $entryValue = $setupDirection === 'long' ? $notional + $entryFee : $notional;
+
+                                    if ($setupDirection === 'long') {
+                                        if ($entryValue > $cash) {
+                                            $quantity = $cash / ($close * (1 + $feeRate));
+                                            $notional = $quantity * $close;
+                                            $entryFee = $notional * $feeRate;
+                                            $entryValue = $notional + $entryFee;
                                         }
-
-                                        if ($quantity > 0) {
-                                            $debug['entries']++;
-                                            $positionDirection = $setupDirection;
-                                            $entryPrice = $close;
-                                            $entryTimestamp = $timestamp;
-                                            $entryReason = 'ema_dome_pullback_confirmation';
-                                            $sequenceCount = 0;
-                                            $referenceHigh = $close;
-                                            $referenceLow = $close;
-
-                                            $this->resetDome(
-                                                $setupDirection,
-                                                $domeCount,
-                                                $peakDistance,
-                                                $pullbackCount,
-                                                $pullbackDistanceStart
-                                            );
+                                        $cash -= $entryValue;
+                                    } else {
+                                        if ($entryFee > $cash) {
+                                            $quantity = $feeRate > 0 ? $cash / ($close * $feeRate) : 0;
+                                            $notional = $quantity * $close;
+                                            $entryFee = $notional * $feeRate;
+                                            $entryValue = $notional;
                                         }
+                                        $cash -= $entryFee;
+                                    }
+
+                                    if ($quantity > 0) {
+                                        $debug['entries']++;
+                                        $positionDirection = $setupDirection;
+                                        $entryPrice = $close;
+                                        $entryTimestamp = $timestamp;
+                                        $entryReason = 'ema_dome_pullback_confirmation';
+                                        $sequenceCount = 0;
+                                        $referenceHigh = $close;
+                                        $referenceLow = $close;
+
+                                        $this->resetSetup(
+                                            $setupDirection,
+                                            $domeActive,
+                                            $domeCount,
+                                            $peakDistance,
+                                            $pullbackStarted,
+                                            $pullbackCount,
+                                            $waitingConfirmation
+                                        );
                                     }
                                 }
-                            }
-
-                            if ($quantity <= 0) {
-                                // The pullback failed to produce a valid confirmation.
-                                // Start over from the current distance if it is still
-                                // far enough from EMA.
-                                if ($emaDistance >= $minEmaDistancePercent) {
-                                    $domeCount = 1;
-                                    $peakDistance = $emaDistance;
-                                    $pullbackCount = 0;
-                                    $pullbackDistanceStart = null;
-                                } else {
-                                    $this->resetDome(
-                                        $setupDirection,
-                                        $domeCount,
-                                        $peakDistance,
-                                        $pullbackCount,
-                                        $pullbackDistanceStart
-                                    );
-                                }
-                            }
-                        } else {
-                            // Pullback continues. A strong expansion away from EMA
-                            // updates the dome peak and requires a new pullback.
-                            if ($emaDistance > $peakDistance) {
-                                $peakDistance = $emaDistance;
+                            } else {
+                                /*
+                                 * Dome and pullback were real, but this candle did
+                                 * not confirm. Freeze this setup. We now wait for a
+                                 * fresh EMA crossing instead of repeatedly re-testing
+                                 * every candle in the same structure.
+                                 */
+                                $debug['confirmation_rejected']++;
+                                $waitingConfirmation = true;
                             }
                         }
                     }
@@ -327,6 +374,8 @@ class StructureTrendEngine
                 }
             }
 
+            $previousClose = $close;
+            $previousEma = $ma;
             $previousDistance = $emaDistance;
             $lastPrice = $close;
             $lastTimestamp = $timestamp;
@@ -378,18 +427,22 @@ class StructureTrendEngine
         ];
     }
 
-    private function resetDome(
+    private function resetSetup(
         ?string &$direction,
+        bool &$domeActive,
         int &$domeCount,
         ?float &$peakDistance,
+        bool &$pullbackStarted,
         int &$pullbackCount,
-        ?float &$pullbackDistanceStart
+        bool &$waitingConfirmation
     ): void {
         $direction = null;
+        $domeActive = false;
         $domeCount = 0;
         $peakDistance = null;
+        $pullbackStarted = false;
         $pullbackCount = 0;
-        $pullbackDistanceStart = null;
+        $waitingConfirmation = false;
     }
 
     private function candleBodyPercent(float $open, float $close): float
