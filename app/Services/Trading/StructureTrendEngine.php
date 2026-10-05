@@ -115,19 +115,32 @@ class StructureTrendEngine
             $allowedShort = $direction === 'short' || $direction === 'both';
 
             // Inspection-only dome detector.
-            //
-            // A dome is a complete excursion away from the EMA and back to it:
-            //
-            //   UPPER: EMA -> move above -> stay/extend above -> turn back -> EMA
-            //   LOWER: EMA -> move below -> stay/extend below -> turn back -> EMA
-            //
-            // The first EMA interaction is only the START. It is never itself a
-            // dome. We require a real outward leg, a real turn, and a return leg.
+            // A valid dome is confirmed only after an outward leg and a return
+            // leg. The actual peak/trough is selected retrospectively from ALL
+            // candles between the two EMA interactions:
+            //   - below EMA: lowest close
+            //   - above EMA: highest close
             if ($domeCandidateDirection === null) {
+                // The first EMA interaction can be a real crossing OR a
+                // candle whose wick touches the EMA and closes back on one
+                // side. The side of the close determines which dome we are
+                // looking for:
+                //   close above EMA -> upper dome / peak
+                //   close below EMA -> lower dome / trough
                 $upperContact = $close > $ma && $low <= $ma;
                 $lowerContact = $close < $ma && $high >= $ma;
 
-                if ($upperContact) {
+                $crossedUp = $previousClose !== null
+                    && $previousEma !== null
+                    && $previousClose <= $previousEma
+                    && $close > $ma;
+
+                $crossedDown = $previousClose !== null
+                    && $previousEma !== null
+                    && $previousClose >= $previousEma
+                    && $close < $ma;
+
+                if ($upperContact || $crossedUp) {
                     $domeCandidateDirection = 'long';
                     $domeStartTimestamp = $timestamp;
                     $domeStartPrice = $close;
@@ -138,7 +151,7 @@ class StructureTrendEngine
                     $domeCandles = 1;
                     $domeReturnCandles = 0;
                     $domeReturning = false;
-                } elseif ($lowerContact) {
+                } elseif ($lowerContact || $crossedDown) {
                     $domeCandidateDirection = 'short';
                     $domeStartTimestamp = $timestamp;
                     $domeStartPrice = $close;
@@ -150,19 +163,20 @@ class StructureTrendEngine
                     $domeReturnCandles = 0;
                     $domeReturning = false;
                 }
-            } else {
+            } elseif ($domeCandidateDirection !== null) {
                 $onDomeSide = ($domeCandidateDirection === 'long' && $close > $ma)
                     || ($domeCandidateDirection === 'short' && $close < $ma);
 
-                $returnedToEma = ($domeCandidateDirection === 'long' && $close <= $ma)
-                    || ($domeCandidateDirection === 'short' && $close >= $ma);
+                // A dome is allowed to finish exactly when price reaches/crosses
+                // EMA. Do not discard the upper dome just because its return
+                // candle is the crossing candle.
 
                 if (!$domeReturning) {
                     if ($onDomeSide) {
                         $domeCandles++;
 
-                        // Track the actual peak/trough by CLOSE, not by the EMA
-                        // distance. Upper = highest close, lower = lowest close.
+                        // Keep the true extreme of the dome. For an upper dome
+                        // it is the highest close; for a lower dome the lowest.
                         $isMoreExtreme = ($domeCandidateDirection === 'long' && $close > $domePeakPrice)
                             || ($domeCandidateDirection === 'short' && $close < $domePeakPrice);
 
@@ -171,37 +185,30 @@ class StructureTrendEngine
                             $domePeakTimestamp = $timestamp;
                         }
 
+                        // Mark the outward leg from an actual increase in
+                        // distance from EMA. Do not require an arbitrary
+                        // percentage threshold: small but real upper domes
+                        // must also appear in the inspection log.
                         if ($emaDistance > $domePeakDistance) {
                             $domeMovedAway = true;
-                            $domePeakDistance = $emaDistance;
                         }
 
-                        // Only after the price has actually moved away for the
-                        // required number of candles may a shrinking distance
-                        // start the return leg.
+                        $domePeakDistance = max(
+                            $domePeakDistance,
+                            $emaDistance
+                        );
+
+                        // A meaningful decrease in distance starts the return leg.
                         if ($domeMovedAway
-                            && $domeCandles >= $minDomeCandles
                             && $previousDistance !== null
                             && $emaDistance < $previousDistance
+                            && $domeCandles >= $minDomeCandles
                         ) {
                             $domeReturning = true;
                             $domeReturnCandles = 1;
                         }
-                    } elseif ($returnedToEma) {
-                        // Returned before completing the outward leg: not a dome.
-                        $domeCandidateDirection = null;
-                        $domeStartTimestamp = null;
-                        $domeStartPrice = null;
-                        $domePeakTimestamp = null;
-                        $domePeakPrice = null;
-                        $domePeakDistance = 0.0;
-                        $domeMovedAway = false;
-                        $domeCandles = 0;
-                        $domeReturnCandles = 0;
-                        $domeReturning = false;
                     } else {
-                        // Left the EMA but then crossed to the opposite side
-                        // without forming the required excursion: discard it.
+                        // Crossed back too early: this was not a dome.
                         $domeCandidateDirection = null;
                         $domeStartTimestamp = null;
                         $domeStartPrice = null;
@@ -214,6 +221,9 @@ class StructureTrendEngine
                         $domeReturning = false;
                     }
                 } else {
+                    // Keep updating the true extreme until the second EMA
+                    // interaction. This makes the displayed peak independent
+                    // of where the first pullback candle happened.
                     if ($onDomeSide) {
                         $domeCandles++;
 
@@ -225,19 +235,18 @@ class StructureTrendEngine
                             $domePeakTimestamp = $timestamp;
                         }
 
-                        // During the return leg, distance must keep shrinking.
-                        // If price moves away again, this is no longer the same
-                        // clean dome shape, so restart the candidate.
+                        $domePeakDistance = max($domePeakDistance, $emaDistance);
+
                         $movingTowardEma = $previousDistance !== null
                             && $emaDistance < $previousDistance;
 
                         if ($movingTowardEma) {
                             $domeReturnCandles++;
-                        } else {
-                            $domeReturning = false;
-                            $domeReturnCandles = 0;
                         }
                     }
+
+                    $returnedToEma = ($domeCandidateDirection === 'long' && $close <= $ma)
+                        || ($domeCandidateDirection === 'short' && $close >= $ma);
 
                     if ($returnedToEma) {
                         if ($domeCandles >= $minDomeCandles
@@ -261,8 +270,8 @@ class StructureTrendEngine
                             ];
                         }
 
-                        // Consume this dome. A new dome must start from a fresh
-                        // EMA interaction; never nest another dome inside it.
+                        // The completed dome is consumed. The next dome must
+                        // begin with a fresh EMA crossing, not this same crossing.
                         $domeCandidateDirection = null;
                         $domeStartTimestamp = null;
                         $domeStartPrice = null;
