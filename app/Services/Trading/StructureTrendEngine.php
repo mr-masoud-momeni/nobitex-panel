@@ -80,6 +80,9 @@ class StructureTrendEngine
         $domePeakPrice = null;
         $domePeakDistance = 0.0;
         $domeMovedAway = false;
+        $domeCandles = 0;
+        $domeReturnCandles = 0;
+        $domeReturning = false;
 
         $debug = [
             'ema_crosses' => 0,
@@ -111,7 +114,14 @@ class StructureTrendEngine
             $allowedLong = $direction === 'long' || $direction === 'both';
             $allowedShort = $direction === 'short' || $direction === 'both';
 
-            // Inspection-only dome detector: first EMA crossing -> move away -> return crossing.
+            // Inspection-only dome detector.
+            // A dome is NOT just an EMA crossing. It must have:
+            // 1) an initial EMA crossing,
+            // 2) at least N candles clearly on the other side of EMA,
+            // 3) a real expansion away from EMA,
+            // 4) at least M candles returning toward EMA,
+            // 5) a second EMA crossing that completes the dome.
+            // The same rules apply above and below the EMA.
             if ($domeCandidateDirection === null && $previousClose !== null && $previousEma !== null) {
                 if ($previousClose <= $previousEma && $close > $ma) {
                     $domeCandidateDirection = 'long';
@@ -121,6 +131,9 @@ class StructureTrendEngine
                     $domePeakPrice = $close;
                     $domePeakDistance = $emaDistance;
                     $domeMovedAway = false;
+                    $domeCandles = 1;
+                    $domeReturnCandles = 0;
+                    $domeReturning = false;
                 } elseif ($previousClose >= $previousEma && $close < $ma) {
                     $domeCandidateDirection = 'short';
                     $domeStartTimestamp = $timestamp;
@@ -129,42 +142,100 @@ class StructureTrendEngine
                     $domePeakPrice = $close;
                     $domePeakDistance = $emaDistance;
                     $domeMovedAway = false;
+                    $domeCandles = 1;
+                    $domeReturnCandles = 0;
+                    $domeReturning = false;
                 }
             } elseif ($domeCandidateDirection !== null) {
-                if ($emaDistance > $domePeakDistance) {
-                    $domePeakDistance = $emaDistance;
-                    $domePeakTimestamp = $timestamp;
-                    $domePeakPrice = $close;
-                    $domeMovedAway = true;
-                }
+                $onDomeSide = ($domeCandidateDirection === 'long' && $close > $ma)
+                    || ($domeCandidateDirection === 'short' && $close < $ma);
 
-                $returnedToEma = ($domeCandidateDirection === 'long' && $previousClose > $previousEma && $close <= $ma)
-                    || ($domeCandidateDirection === 'short' && $previousClose < $previousEma && $close >= $ma);
+                $distanceExpanded = $emaDistance > $domePeakDistance;
 
-                if ($returnedToEma) {
-                    if ($domeMovedAway) {
-                        $domeDetections[] = [
-                            'direction' => $domeCandidateDirection,
-                            'start_time' => $this->formatTimestamp($domeStartTimestamp),
-                            'start_time_jalali' => $this->formatTimestampJalali($domeStartTimestamp),
-                            'start_price' => $domeStartPrice,
-                            'peak_time' => $this->formatTimestamp($domePeakTimestamp),
-                            'peak_time_jalali' => $this->formatTimestampJalali($domePeakTimestamp),
-                            'peak_price' => $domePeakPrice,
-                            'peak_distance_percent' => $domePeakDistance,
-                            'end_time' => $this->formatTimestamp($timestamp),
-                            'end_time_jalali' => $this->formatTimestampJalali($timestamp),
-                            'end_price' => $close,
-                        ];
+                if (!$domeReturning) {
+                    if ($onDomeSide) {
+                        $domeCandles++;
+
+                        if ($distanceExpanded) {
+                            $domePeakDistance = $emaDistance;
+                            $domePeakTimestamp = $timestamp;
+                            $domePeakPrice = $close;
+                            $domeMovedAway = true;
+                        }
+
+                        // The first meaningful shrink after a real expansion
+                        // starts the return leg. It does not complete the dome.
+                        if ($domeMovedAway
+                            && $previousDistance !== null
+                            && $emaDistance < $previousDistance
+                            && $domeCandles >= $minDomeCandles
+                        ) {
+                            $domeReturning = true;
+                            $domeReturnCandles = 1;
+                        }
+                    } else {
+                        // A premature return before the minimum outward leg
+                        // invalidates this candidate. It was only a small EMA cross.
+                        $domeCandidateDirection = null;
+                        $domeStartTimestamp = null;
+                        $domeStartPrice = null;
+                        $domePeakTimestamp = null;
+                        $domePeakPrice = null;
+                        $domePeakDistance = 0.0;
+                        $domeMovedAway = false;
+                        $domeCandles = 0;
+                        $domeReturnCandles = 0;
+                        $domeReturning = false;
+                    }
+                } else {
+                    // Return leg: candles must keep moving back toward EMA.
+                    $movingTowardEma = $previousDistance !== null
+                        && $emaDistance < $previousDistance;
+
+                    if ($onDomeSide && $movingTowardEma) {
+                        $domeReturnCandles++;
+                    } elseif ($onDomeSide && $emaDistance >= $previousDistance) {
+                        // A brief pause is allowed, but a new expansion means
+                        // the return leg has not actually completed yet.
+                        $domeReturnCandles = max(0, $domeReturnCandles - 1);
                     }
 
-                    $domeCandidateDirection = null;
-                    $domeStartTimestamp = null;
-                    $domeStartPrice = null;
-                    $domePeakTimestamp = null;
-                    $domePeakPrice = null;
-                    $domePeakDistance = 0.0;
-                    $domeMovedAway = false;
+                    $returnedToEma = ($domeCandidateDirection === 'long' && $close <= $ma)
+                        || ($domeCandidateDirection === 'short' && $close >= $ma);
+
+                    if ($returnedToEma) {
+                        if ($domeCandles >= $minDomeCandles
+                            && $domeReturnCandles >= $minPullbackCandles
+                            && $domeMovedAway
+                        ) {
+                            $domeDetections[] = [
+                                'direction' => $domeCandidateDirection,
+                                'start_time' => $this->formatTimestamp($domeStartTimestamp),
+                                'start_time_jalali' => $this->formatTimestampJalali($domeStartTimestamp),
+                                'start_price' => $domeStartPrice,
+                                'dome_candles' => $domeCandles,
+                                'return_candles' => $domeReturnCandles,
+                                'peak_time' => $this->formatTimestamp($domePeakTimestamp),
+                                'peak_time_jalali' => $this->formatTimestampJalali($domePeakTimestamp),
+                                'peak_price' => $domePeakPrice,
+                                'peak_distance_percent' => $domePeakDistance,
+                                'end_time' => $this->formatTimestamp($timestamp),
+                                'end_time_jalali' => $this->formatTimestampJalali($timestamp),
+                                'end_price' => $close,
+                            ];
+                        }
+
+                        $domeCandidateDirection = null;
+                        $domeStartTimestamp = null;
+                        $domeStartPrice = null;
+                        $domePeakTimestamp = null;
+                        $domePeakPrice = null;
+                        $domePeakDistance = 0.0;
+                        $domeMovedAway = false;
+                        $domeCandles = 0;
+                        $domeReturnCandles = 0;
+                        $domeReturning = false;
+                    }
                 }
             }
 
