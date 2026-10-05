@@ -375,12 +375,23 @@ class TradeController extends Controller
                     'stopped_at' => null,
                 ]);
 
-                return back()->with(
-                    'success',
-                    "بک‌تست با موفقیت اجرا شد. {$count} کندل همگام‌سازی شد؛ "
+                $message = "بک‌تست با موفقیت اجرا شد. {$count} کندل همگام‌سازی شد؛ "
                     ."نتیجه: ".number_format($result['result_percent'], 2)."٪ | "
-                    ."تعداد معاملات: ".$result['total_trades']
-                );
+                    ."تعداد معاملات: ".$result['total_trades'];
+
+                if (($strategy->strategy_type ?? null) === 'structure_trend' && isset($result['structure_debug'])) {
+                    $debug = $result['structure_debug'];
+                    $message .= " | ساختار: "
+                        ."رنج {$debug['range_detected']} → "
+                        ."برک‌اوت {$debug['breakout_detected']} → "
+                        ."حرکت {$debug['impulse_completed']} → "
+                        ."پولبک {$debug['pullback_started']} → "
+                        ."ری‌برک {$debug['rebreak_detected']} → "
+                        ."فیلتر ورود {$debug['entry_filters_passed']} → "
+                        ."ورود {$debug['entries']}";
+                }
+
+                return back()->with('success', $message);
             } catch (Throwable $e) {
                 $trade->update([
                     'status' => 'draft',
