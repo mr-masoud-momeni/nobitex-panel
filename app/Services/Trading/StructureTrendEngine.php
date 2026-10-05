@@ -166,14 +166,18 @@ class StructureTrendEngine
                             $domePeakTimestamp = $timestamp;
                         }
 
+                        // Mark the outward leg from an actual increase in
+                        // distance from EMA. Do not require an arbitrary
+                        // percentage threshold: small but real upper domes
+                        // must also appear in the inspection log.
+                        if ($emaDistance > $domePeakDistance) {
+                            $domeMovedAway = true;
+                        }
+
                         $domePeakDistance = max(
                             $domePeakDistance,
                             $emaDistance
                         );
-
-                        if ($emaDistance > $domePeakDistance || $emaDistance > $minEmaDistancePercent) {
-                            $domeMovedAway = true;
-                        }
 
                         // A meaningful decrease in distance starts the return leg.
                         if ($domeMovedAway
