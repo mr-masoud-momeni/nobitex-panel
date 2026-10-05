@@ -72,6 +72,15 @@ class StructureTrendEngine
         $losingTrades = 0;
         $executionLog = [];
 
+        $domeDetections = [];
+        $domeCandidateDirection = null;
+        $domeStartTimestamp = null;
+        $domeStartPrice = null;
+        $domePeakTimestamp = null;
+        $domePeakPrice = null;
+        $domePeakDistance = 0.0;
+        $domeMovedAway = false;
+
         $debug = [
             'ema_crosses' => 0,
             'dome_detected' => 0,
@@ -81,6 +90,7 @@ class StructureTrendEngine
             'confirmation_rejected' => 0,
             'entry_filters_passed' => 0,
             'entries' => 0,
+            'domes' => [],
         ];
 
         foreach ($candles as $candle) {
@@ -100,6 +110,60 @@ class StructureTrendEngine
             $emaDistance = (abs($close - $ma) / $ma) * 100;
             $allowedLong = $direction === 'long' || $direction === 'both';
             $allowedShort = $direction === 'short' || $direction === 'both';
+
+            // Inspection-only dome detector: first EMA crossing -> move away -> return crossing.
+            if ($domeCandidateDirection === null && $previousClose !== null && $previousEma !== null) {
+                if ($previousClose <= $previousEma && $close > $ma) {
+                    $domeCandidateDirection = 'long';
+                    $domeStartTimestamp = $timestamp;
+                    $domeStartPrice = $close;
+                    $domePeakTimestamp = $timestamp;
+                    $domePeakPrice = $close;
+                    $domePeakDistance = $emaDistance;
+                    $domeMovedAway = false;
+                } elseif ($previousClose >= $previousEma && $close < $ma) {
+                    $domeCandidateDirection = 'short';
+                    $domeStartTimestamp = $timestamp;
+                    $domeStartPrice = $close;
+                    $domePeakTimestamp = $timestamp;
+                    $domePeakPrice = $close;
+                    $domePeakDistance = $emaDistance;
+                    $domeMovedAway = false;
+                }
+            } elseif ($domeCandidateDirection !== null) {
+                if ($emaDistance > $domePeakDistance) {
+                    $domePeakDistance = $emaDistance;
+                    $domePeakTimestamp = $timestamp;
+                    $domePeakPrice = $close;
+                    $domeMovedAway = true;
+                }
+
+                $returnedToEma = ($domeCandidateDirection === 'long' && $previousClose > $previousEma && $close <= $ma)
+                    || ($domeCandidateDirection === 'short' && $previousClose < $previousEma && $close >= $ma);
+
+                if ($returnedToEma) {
+                    if ($domeMovedAway) {
+                        $domeDetections[] = [
+                            'direction' => $domeCandidateDirection,
+                            'start_time' => $this->formatTimestamp($domeStartTimestamp),
+                            'start_price' => $domeStartPrice,
+                            'peak_time' => $this->formatTimestamp($domePeakTimestamp),
+                            'peak_price' => $domePeakPrice,
+                            'peak_distance_percent' => $domePeakDistance,
+                            'end_time' => $this->formatTimestamp($timestamp),
+                            'end_price' => $close,
+                        ];
+                    }
+
+                    $domeCandidateDirection = null;
+                    $domeStartTimestamp = null;
+                    $domeStartPrice = null;
+                    $domePeakTimestamp = null;
+                    $domePeakPrice = null;
+                    $domePeakDistance = 0.0;
+                    $domeMovedAway = false;
+                }
+            }
 
             $crossedUp = $previousClose !== null
                 && $previousEma !== null
@@ -414,6 +478,8 @@ class StructureTrendEngine
         $initialCapital = (float) $trade->initial_capital;
         $resultAmount = $cash - $initialCapital;
         $resultPercent = $initialCapital > 0 ? ($resultAmount / $initialCapital) * 100 : 0;
+
+        $debug['domes'] = $domeDetections;
 
         return [
             'result_amount' => $resultAmount,
