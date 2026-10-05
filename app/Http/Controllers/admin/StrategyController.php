@@ -24,6 +24,10 @@ class StrategyController extends Controller
             return view('Backend.strategies.ma-trend', ['strategy' => null]);
         }
 
+        if ($type === 'structure_trend') {
+            return view('Backend.strategies.structure-trend', ['strategy' => null]);
+        }
+
         if ($type === 'generic') {
             return view('Backend.strategies.create', ['strategy' => null]);
         }
@@ -39,6 +43,10 @@ class StrategyController extends Controller
             return view('Backend.strategies.ma-trend', compact('strategy'));
         }
 
+        if ($strategy->strategy_type === 'structure_trend') {
+            return view('Backend.strategies.structure-trend', compact('strategy'));
+        }
+
         return view('Backend.strategies.create', compact('strategy'));
     }
 
@@ -47,7 +55,7 @@ class StrategyController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'strategy_type' => ['required', 'in:generic,ma_trend'],
+            'strategy_type' => ['required', 'in:generic,ma_trend,structure_trend'],
             'direction' => ['required', 'in:long,short,both'],
             'risk_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'stop_loss' => ['nullable', 'numeric', 'min:0', 'max:100'],
@@ -59,6 +67,12 @@ class StrategyController extends Controller
             'config.pullback_zone_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'config.min_confirmation_candle_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'config.exit_sequence_count' => ['nullable', 'integer', 'min:2', 'max:20'],
+            'config.structure_swing_strength' => ['nullable', 'integer', 'min:2', 'max:10'],
+            'config.structure_min_swing_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'config.range_lookback_candles' => ['nullable', 'integer', 'min:10', 'max:500'],
+            'config.range_max_width_percent' => ['nullable', 'numeric', 'min:0.1', 'max:100'],
+            'config.breakout_buffer_percent' => ['nullable', 'numeric', 'min:0', 'max:20'],
+            'config.pullback_max_bars' => ['nullable', 'integer', 'min:1', 'max:50'],
             'rules' => ['nullable', 'array'],
             'rules.*.type' => ['required', 'in:entry,exit,long_entry,long_exit,short_entry,short_exit'],
             'rules.*.indicator' => ['required', 'string', 'max:50'],
