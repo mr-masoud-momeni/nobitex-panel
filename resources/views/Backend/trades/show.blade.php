@@ -49,8 +49,6 @@
 
                 <hr>
 
-                <hr>
-
                 <h4>گزارش ورود و خروج بک‌تست</h4>
                 @if(count($backtestLog))
                     <div class="table-responsive">
@@ -87,6 +85,7 @@
                                             @switch($execution['entry_reason'] ?? null)
                                                 @case('entry_rule') شروط ورود استراتژی @break
                                                 @case('pullback_confirmation') پولبک + کندل تأیید @break
+                                                @case('ema_dome_pullback_confirmation') گنبد EMA + پولبک + کندل تأیید @break
                                                 @case('structural_breakout') شکست ساختاری @break
                                                 @default —
                                             @endswitch
