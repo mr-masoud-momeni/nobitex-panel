@@ -120,8 +120,27 @@ class StructureTrendEngine
             // candles between the two EMA interactions:
             //   - below EMA: lowest close
             //   - above EMA: highest close
-            if ($domeCandidateDirection === null && $previousClose !== null && $previousEma !== null) {
-                if ($previousClose <= $previousEma && $close > $ma) {
+            if ($domeCandidateDirection === null) {
+                // The first EMA interaction can be a real crossing OR a
+                // candle whose wick touches the EMA and closes back on one
+                // side. The side of the close determines which dome we are
+                // looking for:
+                //   close above EMA -> upper dome / peak
+                //   close below EMA -> lower dome / trough
+                $upperContact = $close > $ma && $low <= $ma;
+                $lowerContact = $close < $ma && $high >= $ma;
+
+                $crossedUp = $previousClose !== null
+                    && $previousEma !== null
+                    && $previousClose <= $previousEma
+                    && $close > $ma;
+
+                $crossedDown = $previousClose !== null
+                    && $previousEma !== null
+                    && $previousClose >= $previousEma
+                    && $close < $ma;
+
+                if ($upperContact || $crossedUp) {
                     $domeCandidateDirection = 'long';
                     $domeStartTimestamp = $timestamp;
                     $domeStartPrice = $close;
@@ -132,7 +151,7 @@ class StructureTrendEngine
                     $domeCandles = 1;
                     $domeReturnCandles = 0;
                     $domeReturning = false;
-                } elseif ($previousClose >= $previousEma && $close < $ma) {
+                } elseif ($lowerContact || $crossedDown) {
                     $domeCandidateDirection = 'short';
                     $domeStartTimestamp = $timestamp;
                     $domeStartPrice = $close;
