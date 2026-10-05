@@ -148,6 +148,10 @@ class StructureTrendEngine
                 $onDomeSide = ($domeCandidateDirection === 'long' && $close > $ma)
                     || ($domeCandidateDirection === 'short' && $close < $ma);
 
+                // A dome is allowed to finish exactly when price reaches/crosses
+                // EMA. Do not discard the upper dome just because its return
+                // candle is the crossing candle.
+
                 if (!$domeReturning) {
                     if ($onDomeSide) {
                         $domeCandles++;
