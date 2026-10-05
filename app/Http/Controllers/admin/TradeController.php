@@ -382,10 +382,12 @@ class TradeController extends Controller
                 if (($strategy->strategy_type ?? null) === 'structure_trend' && isset($result['structure_debug'])) {
                     $debug = $result['structure_debug'];
                     $message .= " | ساختار: "
+                        ."شکست EMA {$debug['ema_crosses']} → "
                         ."گنبد {$debug['dome_detected']} → "
                         ."شروع پولبک {$debug['pullback_started']} → "
                         ."پولبک کامل {$debug['pullback_completed']} → "
                         ."تأیید {$debug['confirmation_detected']} → "
+                        ."رد تأیید {$debug['confirmation_rejected']} → "
                         ."فیلتر ورود {$debug['entry_filters_passed']} → "
                         ."ورود {$debug['entries']}";
                 }
