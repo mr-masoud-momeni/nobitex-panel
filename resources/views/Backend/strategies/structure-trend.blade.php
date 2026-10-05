@@ -24,47 +24,47 @@
                     </div>
 
                     <div class="panel panel-default">
-                        <div class="panel-heading">ساختار و پولبک</div>
+                        <div class="panel-heading">تشخیص گنبد و پولبک نسبت به EMA</div>
                         <div class="panel-body">
                             <div class="row">
                                 <div class="col-md-4">
-                                    <label>تعداد کندل تشخیص Sideways</label>
-                                    <input type="number" name="config[range_lookback_candles]" class="form-control" min="10" max="500" step="1"
-                                           value="{{ old('config.range_lookback_candles', $strategy->config['range_lookback_candles'] ?? 30) }}" required>
-                                    <small class="text-muted">تعداد کندل‌هایی که برای تشخیص یک محدوده خنثی بررسی می‌شوند.</small>
+                                    <label>دوره EMA</label>
+                                    <input type="number" name="config[ma_period]" class="form-control" min="1" max="1000" step="1"
+                                           value="{{ old('config.ma_period', $strategy->config['ma_period'] ?? 20) }}" required>
+                                    <small class="text-muted">مبنای اندازه‌گیری فاصله قیمت و تشخیص گنبد.</small>
                                 </div>
                                 <div class="col-md-4">
-                                    <label>حداقل کندل حرکت بعد از Breakout</label>
-                                    <input type="number" name="config[min_move_candles]" class="form-control" min="1" max="20" step="1"
-                                           value="{{ old('config.min_move_candles', $strategy->config['min_move_candles'] ?? 2) }}" required>
-                                    <small class="text-muted">قبل از شروع پولبک باید حداقل این تعداد کندل در جهت شکست حرکت کنند.</small>
+                                    <label>حداقل فاصله از EMA (%)</label>
+                                    <input type="number" name="config[min_ema_distance_percent]" class="form-control" min="0" max="100" step="0.01"
+                                           value="{{ old('config.min_ema_distance_percent', $strategy->config['min_ema_distance_percent'] ?? 0.5) }}" required>
+                                    <small class="text-muted">قیمت باید حداقل این مقدار از EMA فاصله گرفته باشد.</small>
                                 </div>
                                 <div class="col-md-4">
-                                    <label>حداقل کندل Pullback</label>
-                                    <input type="number" name="config[min_pullback_candles]" class="form-control" min="1" max="20" step="1"
-                                           value="{{ old('config.min_pullback_candles', $strategy->config['min_pullback_candles'] ?? 1) }}" required>
-                                    <small class="text-muted">پولبک می‌تواند فقط یک کندل باشد؛ برای روندهای قوی این مقدار مناسب است.</small>
+                                    <label>حداقل کندل‌های گنبد</label>
+                                    <input type="number" name="config[min_dome_candles]" class="form-control" min="2" max="20" step="1"
+                                           value="{{ old('config.min_dome_candles', $strategy->config['min_dome_candles'] ?? 3) }}" required>
+                                    <small class="text-muted">قبل از شروع برگشت فاصله، چند کندل باید در ناحیه فاصله‌گرفته باشند.</small>
                                 </div>
                             </div>
 
                             <div class="row" style="margin-top:15px;">
                                 <div class="col-md-4">
-                                    <label>حداقل اندازه کندل ورود (%)</label>
+                                    <label>حداقل کندل‌های پولبک</label>
+                                    <input type="number" name="config[min_pullback_candles]" class="form-control" min="1" max="20" step="1"
+                                           value="{{ old('config.min_pullback_candles', $strategy->config['min_pullback_candles'] ?? 2) }}" required>
+                                    <small class="text-muted">تعداد کندل‌هایی که فاصله از EMA باید در جهت برگشت کاهش پیدا کند.</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <label>حداقل شیب پولبک (%)</label>
+                                    <input type="number" name="config[min_pullback_slope_percent]" class="form-control" min="0" max="10" step="0.01"
+                                           value="{{ old('config.min_pullback_slope_percent', $strategy->config['min_pullback_slope_percent'] ?? 0.05) }}" required>
+                                    <small class="text-muted">حداقل کاهش فاصله از EMA در هر کندل، برحسب واحد درصد فاصله.</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <label>حداقل اندازه کندل تأیید (%)</label>
                                     <input type="number" name="config[min_entry_candle_percent]" class="form-control" min="0" max="100" step="0.01"
                                            value="{{ old('config.min_entry_candle_percent', $strategy->config['min_entry_candle_percent'] ?? 0.3) }}" required>
-                                    <small class="text-muted">اندازه بدنه کندل ورود؛ جلوی ورود با کندل بسیار ضعیف را می‌گیرد.</small>
-                                </div>
-                                <div class="col-md-4">
-                                    <label>حداقل فاصله قیمت از EMA (%)</label>
-                                    <input type="number" name="config[min_ema_distance_percent]" class="form-control" min="0" max="100" step="0.01"
-                                           value="{{ old('config.min_ema_distance_percent', $strategy->config['min_ema_distance_percent'] ?? 0.2) }}" required>
-                                    <small class="text-muted">کندل ورود باید حداقل این فاصله را از EMA داشته باشد.</small>
-                                </div>
-                                <div class="col-md-4">
-                                    <label>دوره EMA</label>
-                                    <input type="number" name="config[ma_period]" class="form-control" min="1" max="1000" step="1"
-                                           value="{{ old('config.ma_period', $strategy->config['ma_period'] ?? 20) }}" required>
-                                    <small class="text-muted">EMA فقط فیلتر فاصله است و روند را تشخیص نمی‌دهد.</small>
+                                    <small class="text-muted">بدنه کندل تأیید باید حداقل این مقدار باشد.</small>
                                 </div>
                             </div>
                         </div>
