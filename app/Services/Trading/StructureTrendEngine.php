@@ -13,16 +13,17 @@ class StructureTrendEngine
     {
         $config = is_array($strategy->config) ? $strategy->config : [];
 
-        $maPeriod = max(1, (int) ($config['ma_period'] ?? 20));
-        $swingStrength = max(2, min(10, (int) ($config['structure_swing_strength'] ?? 3)));
-        $minSwingPercent = max(0.0, (float) ($config['structure_min_swing_percent'] ?? 0.4));
         $rangeLookback = max(10, min(500, (int) ($config['range_lookback_candles'] ?? 30)));
-        $rangeMaxWidthPercent = max(0.1, (float) ($config['range_max_width_percent'] ?? 3.0));
-        $breakoutBufferPercent = max(0.0, (float) ($config['breakout_buffer_percent'] ?? 0.1));
-        $pullbackZonePercent = max(0.0, (float) ($config['pullback_zone_percent'] ?? 0.5));
-        $pullbackMaxBars = max(1, min(50, (int) ($config['pullback_max_bars'] ?? 8)));
-        $minConfirmationCandlePercent = max(0.0, (float) ($config['min_confirmation_candle_percent'] ?? 0.3));
+        $minMoveCandles = max(1, min(20, (int) ($config['min_move_candles'] ?? 2)));
+        $minPullbackCandles = max(1, min(20, (int) ($config['min_pullback_candles'] ?? 1)));
+        $minEntryCandlePercent = max(0.0, (float) ($config['min_entry_candle_percent'] ?? 0.3));
+        $minEmaDistancePercent = max(0.0, (float) ($config['min_ema_distance_percent'] ?? 0.2));
+        $maPeriod = max(1, min(1000, (int) ($config['ma_period'] ?? 20)));
         $sequenceLength = max(2, min(20, (int) ($config['exit_sequence_count'] ?? 3)));
+
+        // Sideways width is intentionally an internal rule, not a user parameter.
+        // The visible parameter is only how many candles must form the range.
+        $rangeMaxWidthPercent = 3.0;
 
         $direction = $strategy->direction ?: 'long';
         $ema = new Ema($maPeriod);
@@ -39,23 +40,24 @@ class StructureTrendEngine
         $entryReason = null;
 
         $candlesBuffer = [];
-        $swingHighs = [];
-        $swingLows = [];
 
-        $marketState = 'range';
-        $breakoutDirection = null;
+        // Setup state:
+        // range -> breakout -> impulse -> pullback -> re-break/entry.
+        $setupDirection = null;
         $breakoutLevel = null;
         $breakoutTimestamp = null;
-        $pullbackDetected = false;
-        $entryTaken = false;
+        $impulseCount = 0;
+        $pullbackCount = 0;
+        $pullbackStarted = false;
 
+        // Exit state: close-based reference high/low.
         $sequenceCount = 0;
         $referenceHigh = null;
         $referenceLow = null;
 
         $lastPrice = null;
         $lastTimestamp = null;
-        $previousMa = null;
+        $previousClose = null;
 
         $totalTrades = 0;
         $winningTrades = 0;
@@ -78,100 +80,94 @@ class StructureTrendEngine
                 'timestamp' => $timestamp,
             ];
 
-            $maxBuffer = max($rangeLookback, ($swingStrength * 2) + 10);
-            if (count($candlesBuffer) > $maxBuffer) {
+            if (count($candlesBuffer) > $rangeLookback + 2) {
                 array_shift($candlesBuffer);
             }
 
-            if ($ma === null || count($candlesBuffer) < ($swingStrength * 2) + 1) {
+            if ($ma === null || $previousClose === null) {
                 $lastPrice = $close;
                 $lastTimestamp = $timestamp;
+                $previousClose = $close;
                 continue;
             }
 
-            $this->confirmLatestSwing(
-                $candlesBuffer,
-                $swingStrength,
-                $minSwingPercent,
-                $swingHighs,
-                $swingLows
-            );
+            // Detect the range from the candles BEFORE the current candle.
+            $range = $this->detectRange($candlesBuffer, $rangeLookback, $rangeMaxWidthPercent);
 
-            $marketState = $this->detectRange($candlesBuffer, $rangeLookback, $rangeMaxWidthPercent)
-                ? 'range'
-                : ($this->detectStructureDirection($swingHighs, $swingLows, $minSwingPercent) ?: 'transition');
+            if ($range !== null && $quantity <= 0) {
+                $setupDirection = null;
+                $breakoutLevel = null;
+                $breakoutTimestamp = null;
+                $impulseCount = 0;
+                $pullbackCount = 0;
+                $pullbackStarted = false;
 
-            $latestHigh = $this->latestSwing($swingHighs);
-            $latestLow = $this->latestSwing($swingLows);
+                if (($direction === 'long' || $direction === 'both') && $close > $range['high']) {
+                    $setupDirection = 'long';
+                    $breakoutLevel = $high;
+                    $breakoutTimestamp = $timestamp;
+                } elseif (($direction === 'short' || $direction === 'both') && $close < $range['low']) {
+                    $setupDirection = 'short';
+                    $breakoutLevel = $low;
+                    $breakoutTimestamp = $timestamp;
+                }
+            } elseif ($quantity <= 0 && $setupDirection !== null && $breakoutLevel !== null) {
+                $isDirectionalMove = $setupDirection === 'long'
+                    ? $close > $previousClose
+                    : $close < $previousClose;
 
-            // Structure is the trend detector. EMA only confirms direction.
-            if ($marketState !== 'range' && $latestHigh !== null && ($direction === 'long' || $direction === 'both')) {
-                $level = $latestHigh['price'];
+                $isPullbackMove = $setupDirection === 'long'
+                    ? $close < $previousClose
+                    : $close > $previousClose;
 
-                if (
-                    $close > $level * (1 + $breakoutBufferPercent / 100)
-                    && $close > $ma
-                    && $this->emaSlopePositive($ma, $previousMa)
-                ) {
-                    if ($breakoutDirection !== 'long' || $breakoutLevel !== $level) {
-                        $breakoutDirection = 'long';
-                        $breakoutLevel = $level;
-                        $breakoutTimestamp = $timestamp;
-                        $pullbackDetected = false;
-                        $entryTaken = false;
+                if (!$pullbackStarted) {
+                    if ($isDirectionalMove) {
+                        $impulseCount++;
+                    } elseif ($isPullbackMove && $impulseCount >= $minMoveCandles) {
+                        $pullbackStarted = true;
+                        $pullbackCount = 1;
+                    }
+
+                    // A return through the breakout level before the pullback is
+                    // complete invalidates the setup.
+                    if (
+                        ($setupDirection === 'long' && $close < $breakoutLevel)
+                        || ($setupDirection === 'short' && $close > $breakoutLevel)
+                    ) {
+                        $this->resetSetup(
+                            $setupDirection,
+                            $breakoutLevel,
+                            $breakoutTimestamp,
+                            $impulseCount,
+                            $pullbackCount,
+                            $pullbackStarted
+                        );
+                    }
+                } else {
+                    if ($isPullbackMove) {
+                        $pullbackCount++;
+                    } elseif ($isDirectionalMove && $pullbackCount >= $minPullbackCandles) {
+                        // This is the first candle capable of re-breaking the
+                        // breakout candle's extreme.
+                    }
+
+                    if (
+                        ($setupDirection === 'long' && $close < $breakoutLevel)
+                        || ($setupDirection === 'short' && $close > $breakoutLevel)
+                    ) {
+                        $this->resetSetup(
+                            $setupDirection,
+                            $breakoutLevel,
+                            $breakoutTimestamp,
+                            $impulseCount,
+                            $pullbackCount,
+                            $pullbackStarted
+                        );
                     }
                 }
             }
 
-            if ($marketState !== 'range' && $latestLow !== null && ($direction === 'short' || $direction === 'both')) {
-                $level = $latestLow['price'];
-
-                if (
-                    $close < $level * (1 - $breakoutBufferPercent / 100)
-                    && $close < $ma
-                    && $this->emaSlopeNegative($ma, $previousMa)
-                ) {
-                    if ($breakoutDirection !== 'short' || $breakoutLevel !== $level) {
-                        $breakoutDirection = 'short';
-                        $breakoutLevel = $level;
-                        $breakoutTimestamp = $timestamp;
-                        $pullbackDetected = false;
-                        $entryTaken = false;
-                    }
-                }
-            }
-
-            if ($breakoutDirection !== null && $breakoutTimestamp !== null && !$entryTaken) {
-                $barsSinceBreakout = $this->barsSinceTimestamp($candlesBuffer, $breakoutTimestamp);
-
-                if ($barsSinceBreakout <= $pullbackMaxBars && $breakoutLevel !== null) {
-                    if ($breakoutDirection === 'long') {
-                        $emaZone = $low >= $ma * (1 - $pullbackZonePercent / 100)
-                            && $low <= $ma * (1 + $pullbackZonePercent / 100);
-                        $breakoutZone = $low <= $breakoutLevel * (1 + $pullbackZonePercent / 100)
-                            && $low >= $breakoutLevel * (1 - $pullbackZonePercent / 100);
-
-                        if ($emaZone || $breakoutZone) {
-                            $pullbackDetected = true;
-                        }
-                    } else {
-                        $emaZone = $high >= $ma * (1 - $pullbackZonePercent / 100)
-                            && $high <= $ma * (1 + $pullbackZonePercent / 100);
-                        $breakoutZone = $high <= $breakoutLevel * (1 + $pullbackZonePercent / 100)
-                            && $high >= $breakoutLevel * (1 - $pullbackZonePercent / 100);
-
-                        if ($emaZone || $breakoutZone) {
-                            $pullbackDetected = true;
-                        }
-                    }
-                } elseif ($barsSinceBreakout > $pullbackMaxBars) {
-                    $breakoutDirection = null;
-                    $breakoutLevel = null;
-                    $breakoutTimestamp = null;
-                    $pullbackDetected = false;
-                }
-            }
-
+            // Risk exits are checked before the structural trailing exit.
             if ($quantity > 0 && $positionDirection !== null) {
                 $exitPrice = $this->exitPriceFromRisk(
                     $entryPrice,
@@ -243,7 +239,6 @@ class StructureTrendEngine
                         'profit_percent' => $entryValue > 0 ? ($profit / $entryValue) * 100 : 0,
                         'exit_reason' => $exitReason,
                         'cash_after' => $cash,
-                        'market_state' => $marketState,
                     ];
 
                     $quantity = 0.0;
@@ -259,24 +254,27 @@ class StructureTrendEngine
                 }
             }
 
-            if ($quantity <= 0 && !$entryTaken && $breakoutDirection !== null) {
-                $entryDirection = $breakoutDirection;
+            // Entry is only possible after:
+            // breakout -> minimum directional candles -> minimum pullback candles
+            // -> close breaks the breakout candle's high/low again.
+            if ($quantity <= 0 && $setupDirection !== null && $breakoutLevel !== null && $pullbackStarted) {
+                $reBreak = $setupDirection === 'long'
+                    ? $close > $breakoutLevel
+                    : $close < $breakoutLevel;
 
-                if ($entryDirection === 'long') {
-                    $entrySignal = $pullbackDetected
-                        && $close > $open
-                        && $close > $ma
-                        && $this->emaSlopePositive($ma, $previousMa)
-                        && $this->candleHeightPercent($high, $low) >= $minConfirmationCandlePercent
-                        && ($breakoutLevel === null || $close >= $breakoutLevel);
-                } else {
-                    $entrySignal = $pullbackDetected
-                        && $close < $open
-                        && $close < $ma
-                        && $this->emaSlopeNegative($ma, $previousMa)
-                        && $this->candleHeightPercent($high, $low) >= $minConfirmationCandlePercent
-                        && ($breakoutLevel === null || $close <= $breakoutLevel);
-                }
+                $candleDirectionOk = $setupDirection === 'long'
+                    ? $close > $open
+                    : $close < $open;
+
+                $candleSizeOk = $this->candleBodyPercent($open, $close) >= $minEntryCandlePercent;
+                $emaDistanceOk = $ma > 0
+                    && (abs($close - $ma) / $ma) * 100 >= $minEmaDistancePercent;
+
+                $entrySignal = $pullbackCount >= $minPullbackCandles
+                    && $reBreak
+                    && $candleDirectionOk
+                    && $candleSizeOk
+                    && $emaDistanceOk;
 
                 if ($entrySignal) {
                     $notional = $this->positionNotional(
@@ -288,9 +286,9 @@ class StructureTrendEngine
                     if ($notional > 0 && $close > 0) {
                         $quantity = $notional / $close;
                         $entryFee = $notional * $feeRate;
-                        $entryValue = $entryDirection === 'long' ? $notional + $entryFee : $notional;
+                        $entryValue = $setupDirection === 'long' ? $notional + $entryFee : $notional;
 
-                        if ($entryDirection === 'long') {
+                        if ($setupDirection === 'long') {
                             if ($entryValue > $cash) {
                                 $quantity = $cash / ($close * (1 + $feeRate));
                                 $notional = $quantity * $close;
@@ -309,14 +307,21 @@ class StructureTrendEngine
                         }
 
                         if ($quantity > 0) {
-                            $positionDirection = $entryDirection;
+                            $positionDirection = $setupDirection;
                             $entryPrice = $close;
                             $entryTimestamp = $timestamp;
-                            $entryReason = 'structure_break_pullback';
-                            $entryTaken = true;
+                            $entryReason = 'range_breakout_pullback_rebreak';
                             $sequenceCount = 0;
                             $referenceHigh = $close;
                             $referenceLow = $close;
+
+                            // One setup produces one entry.
+                            $setupDirection = null;
+                            $breakoutLevel = null;
+                            $breakoutTimestamp = null;
+                            $impulseCount = 0;
+                            $pullbackCount = 0;
+                            $pullbackStarted = false;
                         }
                     }
                 }
@@ -324,7 +329,7 @@ class StructureTrendEngine
 
             $lastPrice = $close;
             $lastTimestamp = $timestamp;
-            $previousMa = $ma;
+            $previousClose = $close;
         }
 
         if ($quantity > 0 && $lastPrice !== null && $positionDirection !== null) {
@@ -354,7 +359,6 @@ class StructureTrendEngine
                 'profit_percent' => $entryValue > 0 ? ($profit / $entryValue) * 100 : 0,
                 'exit_reason' => 'end_of_test',
                 'cash_after' => $cash,
-                'market_state' => $marketState,
             ];
         }
 
@@ -373,144 +377,48 @@ class StructureTrendEngine
         ];
     }
 
-    private function confirmLatestSwing(array $candles, int $strength, float $minSwingPercent, array &$highs, array &$lows): void
+    private function detectRange(array $candles, int $lookback, float $maxWidthPercent): ?array
     {
-        $candidateIndex = count($candles) - 1 - $strength;
-
-        if ($candidateIndex < $strength) {
-            return;
-        }
-
-        $candidate = $candles[$candidateIndex];
-        $isHigh = true;
-        $isLow = true;
-
-        for ($i = $candidateIndex - $strength; $i <= $candidateIndex + $strength; $i++) {
-            if ($i === $candidateIndex) {
-                continue;
-            }
-
-            if ($candles[$i]['high'] >= $candidate['high']) {
-                $isHigh = false;
-            }
-
-            if ($candles[$i]['low'] <= $candidate['low']) {
-                $isLow = false;
-            }
-        }
-
-        if ($isHigh && $this->isMeaningfulSwing($candidate['high'], $highs, $minSwingPercent)) {
-            $this->appendSwing($highs, $candidate['high'], $candidate['timestamp']);
-        }
-
-        if ($isLow && $this->isMeaningfulSwing($candidate['low'], $lows, $minSwingPercent)) {
-            $this->appendSwing($lows, $candidate['low'], $candidate['timestamp']);
-        }
-    }
-
-    private function isMeaningfulSwing(float $price, array $swings, float $minPercent): bool
-    {
-        if (empty($swings) || $minPercent <= 0) {
-            return true;
-        }
-
-        $last = $swings[count($swings) - 1]['price'];
-
-        return $last <= 0 || abs(($price - $last) / $last) * 100 >= $minPercent;
-    }
-
-    private function appendSwing(array &$swings, float $price, int $index): void
-    {
-        $last = $swings[count($swings) - 1] ?? null;
-
-        if ($last !== null && $last['index'] === $index) {
-            return;
-        }
-
-        $swings[] = ['price' => $price, 'index' => $index];
-
-        if (count($swings) > 20) {
-            array_shift($swings);
-        }
-    }
-
-    private function detectStructureDirection(array $highs, array $lows, float $minPercent): ?string
-    {
-        if (count($highs) < 2 || count($lows) < 2) {
+        // Exclude the current candle: the last item is the candle being evaluated.
+        if (count($candles) < $lookback + 1) {
             return null;
         }
 
-        $previousHigh = $highs[count($highs) - 2]['price'];
-        $lastHigh = $highs[count($highs) - 1]['price'];
-        $previousLow = $lows[count($lows) - 2]['price'];
-        $lastLow = $lows[count($lows) - 1]['price'];
-
-        $bullishHigh = $lastHigh > $previousHigh * (1 + $minPercent / 100);
-        $bullishLow = $lastLow > $previousLow * (1 + $minPercent / 100);
-        $bearishHigh = $lastHigh < $previousHigh * (1 - $minPercent / 100);
-        $bearishLow = $lastLow < $previousLow * (1 - $minPercent / 100);
-
-        if ($bullishHigh && $bullishLow) {
-            return 'long';
-        }
-
-        if ($bearishHigh && $bearishLow) {
-            return 'short';
-        }
-
-        return null;
-    }
-
-    private function detectRange(array $candles, int $lookback, float $maxWidthPercent): bool
-    {
-        if (count($candles) < $lookback) {
-            return false;
-        }
-
-        $sample = array_slice($candles, -$lookback);
+        $sample = array_slice($candles, -($lookback + 1), $lookback);
         $high = max(array_column($sample, 'high'));
         $low = min(array_column($sample, 'low'));
 
-        if ($low <= 0) {
-            return false;
+        if ($low <= 0 || (($high - $low) / $low) * 100 > $maxWidthPercent) {
+            return null;
         }
 
-        return (($high - $low) / $low) * 100 <= $maxWidthPercent;
+        return ['high' => $high, 'low' => $low];
     }
 
-    private function latestSwing(array $swings): ?array
-    {
-        return $swings[count($swings) - 1] ?? null;
+    private function resetSetup(
+        ?string &$direction,
+        ?float &$level,
+        ?int &$timestamp,
+        int &$impulseCount,
+        int &$pullbackCount,
+        bool &$pullbackStarted
+    ): void {
+        $direction = null;
+        $level = null;
+        $timestamp = null;
+        $impulseCount = 0;
+        $pullbackCount = 0;
+        $pullbackStarted = false;
     }
 
-    private function emaSlopePositive(?float $ma, ?float $previousMa): bool
+    private function candleBodyPercent(float $open, float $close): float
     {
-        return $ma !== null && $previousMa !== null && $ma > $previousMa;
-    }
-
-    private function emaSlopeNegative(?float $ma, ?float $previousMa): bool
-    {
-        return $ma !== null && $previousMa !== null && $ma < $previousMa;
-    }
-
-    private function barsSinceTimestamp(array $candles, int $timestamp): int
-    {
-        for ($i = count($candles) - 1, $bars = 0; $i >= 0; $i--, $bars++) {
-            if ($candles[$i]['timestamp'] === $timestamp) {
-                return $bars;
-            }
-        }
-
-        return PHP_INT_MAX;
-    }
-
-    private function candleHeightPercent(float $high, float $low): float
-    {
-        if ($low <= 0) {
+        $base = min($open, $close);
+        if ($base <= 0) {
             return 0;
         }
 
-        return (($high - $low) / $low) * 100;
+        return (abs($close - $open) / $base) * 100;
     }
 
     private function positionNotional(float $cash, float $riskPercent, float $stopLoss): float
