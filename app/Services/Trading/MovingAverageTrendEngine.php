@@ -158,17 +158,13 @@ class MovingAverageTrendEngine
                 $exitReason = $exitPrice !== null ? 'stop_loss_or_take_profit' : null;
 
                 if ($exitPrice === null) {
-                    $qualifies = $positionDirection === 'long'
-                        ? $high > ($previousCandle !== null ? (float) $previousCandle->high : $high)
-                        : $low < ($previousCandle !== null ? (float) $previousCandle->low : $low);
-
                     if ($positionDirection === 'long') {
                         if ($referenceHigh === null) {
                             $referenceHigh = $entryPrice;
                         }
 
-                        if ($high > $referenceHigh) {
-                            $referenceHigh = $high;
+                        if ($close > $referenceHigh) {
+                            $referenceHigh = $close;
                             $sequenceCount = 0;
                         } else {
                             $sequenceCount++;
@@ -182,8 +178,8 @@ class MovingAverageTrendEngine
                             $referenceLow = $entryPrice;
                         }
 
-                        if ($low < $referenceLow) {
-                            $referenceLow = $low;
+                        if ($close < $referenceLow) {
+                            $referenceLow = $close;
                             $sequenceCount = 0;
                         } else {
                             $sequenceCount++;
@@ -297,8 +293,8 @@ class MovingAverageTrendEngine
                             $entryTaken = true;
                             $sequenceCount = 0;
                             $sequenceCompleted = false;
-                            $referenceHigh = $high;
-                            $referenceLow = $low;
+                            $referenceHigh = $close;
+                            $referenceLow = $close;
                         }
                     }
                 }
