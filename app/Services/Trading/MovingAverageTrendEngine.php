@@ -45,6 +45,8 @@ class MovingAverageTrendEngine
 
         $sequenceCount = 0;
         $sequenceCompleted = false;
+        $referenceHigh = null;
+        $referenceLow = null;
 
         $previousCandle = null;
         $previousMa = null;
@@ -160,24 +162,36 @@ class MovingAverageTrendEngine
                         ? $high > ($previousCandle !== null ? (float) $previousCandle->high : $high)
                         : $low < ($previousCandle !== null ? (float) $previousCandle->low : $low);
 
-                    if (!$sequenceCompleted) {
-                        if ($qualifies) {
+                    if ($positionDirection === 'long') {
+                        if ($referenceHigh === null) {
+                            $referenceHigh = $entryPrice;
+                        }
+
+                        if ($high > $referenceHigh) {
+                            $referenceHigh = $high;
+                            $sequenceCount = 0;
+                        } else {
                             $sequenceCount++;
                             if ($sequenceCount >= $sequenceLength) {
-                                $sequenceCompleted = true;
-                                $sequenceCount = 1;
+                                $exitPrice = $close;
+                                $exitReason = 'new_high_low_sequence_failed';
                             }
-                        } else {
-                            $sequenceCount = 0;
-                        }
-                    } elseif ($qualifies) {
-                        $sequenceCount++;
-                        if ($sequenceCount >= $sequenceLength) {
-                            $sequenceCount = 1;
                         }
                     } else {
-                        $exitPrice = $close;
-                        $exitReason = 'new_high_low_sequence_failed';
+                        if ($referenceLow === null) {
+                            $referenceLow = $entryPrice;
+                        }
+
+                        if ($low < $referenceLow) {
+                            $referenceLow = $low;
+                            $sequenceCount = 0;
+                        } else {
+                            $sequenceCount++;
+                            if ($sequenceCount >= $sequenceLength) {
+                                $exitPrice = $close;
+                                $exitReason = 'new_high_low_sequence_failed';
+                            }
+                        }
                     }
                 }
 
@@ -219,6 +233,8 @@ class MovingAverageTrendEngine
                     $entryReason = null;
                     $sequenceCount = 0;
                     $sequenceCompleted = false;
+                    $referenceHigh = null;
+                    $referenceLow = null;
                 }
             }
 
@@ -281,6 +297,8 @@ class MovingAverageTrendEngine
                             $entryTaken = true;
                             $sequenceCount = 0;
                             $sequenceCompleted = false;
+                            $referenceHigh = $high;
+                            $referenceLow = $low;
                         }
                     }
                 }
