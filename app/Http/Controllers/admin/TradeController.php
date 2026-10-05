@@ -281,6 +281,17 @@ class TradeController extends Controller
         }
         unset($execution);
 
+        foreach (($structureDebug['domes'] ?? []) as &$dome) {
+            foreach (['start_time', 'peak_time', 'end_time'] as $timeKey) {
+                if (!empty($dome[$timeKey])) {
+                    $dome[$timeKey.'_jalali'] = $this->formatJalaliDateTime(
+                        Carbon::parse($dome[$timeKey], 'Asia/Tehran')
+                    );
+                }
+            }
+        }
+        unset($dome);
+
         return view('Backend.trades.show', [
             'trade' => $trade,
             'backtestLog' => $backtestLog,
