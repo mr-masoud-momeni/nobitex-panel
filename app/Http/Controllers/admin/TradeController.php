@@ -259,7 +259,14 @@ class TradeController extends Controller
     {
         $trade->load(['strategy.rules', 'market', 'marketSymbol']);
 
-        $backtestLog = is_array($trade->backtest_log) ? $trade->backtest_log : [];
+        $storedBacktestLog = is_array($trade->backtest_log) ? $trade->backtest_log : [];
+        $structureDebug = is_array($storedBacktestLog['structure_debug'] ?? null)
+            ? $storedBacktestLog['structure_debug']
+            : [];
+        $backtestLog = array_is_list($storedBacktestLog)
+            ? $storedBacktestLog
+            : (is_array($storedBacktestLog['executions'] ?? null) ? $storedBacktestLog['executions'] : []);
+
         foreach ($backtestLog as &$execution) {
             if (!empty($execution['entry_time'])) {
                 $execution['entry_time_jalali'] = $this->formatJalaliDateTime(
@@ -277,6 +284,7 @@ class TradeController extends Controller
         return view('Backend.trades.show', [
             'trade' => $trade,
             'backtestLog' => $backtestLog,
+            'structureDebug' => $structureDebug,
             'startDateJalali' => $trade->start_date
                 ? $this->formatJalaliDateTime($trade->start_date->copy()->setTimezone('Asia/Tehran'))
                 : null,
@@ -370,7 +378,10 @@ class TradeController extends Controller
                     'total_trades' => $result['total_trades'],
                     'winning_trades' => $result['winning_trades'],
                     'losing_trades' => $result['losing_trades'],
-                    'backtest_log' => $result['execution_log'],
+                    'backtest_log' => [
+                        'executions' => $result['execution_log'],
+                        'structure_debug' => $result['structure_debug'] ?? [],
+                    ],
                     'completed_at' => now(),
                     'stopped_at' => null,
                 ]);
