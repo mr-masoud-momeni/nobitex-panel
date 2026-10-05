@@ -55,6 +55,7 @@ class StructureTrendEngine
 
         $lastPrice = null;
         $lastTimestamp = null;
+        $previousMa = null;
 
         $totalTrades = 0;
         $winningTrades = 0;
@@ -110,7 +111,7 @@ class StructureTrendEngine
                 if (
                     $close > $level * (1 + $breakoutBufferPercent / 100)
                     && $close > $ma
-                    && $this->emaSlopePositive($candlesBuffer, $maPeriod)
+                    && $this->emaSlopePositive($ma, $previousMa)
                 ) {
                     if ($breakoutDirection !== 'long' || $breakoutLevel !== $level) {
                         $breakoutDirection = 'long';
@@ -128,7 +129,7 @@ class StructureTrendEngine
                 if (
                     $close < $level * (1 - $breakoutBufferPercent / 100)
                     && $close < $ma
-                    && $this->emaSlopeNegative($candlesBuffer, $maPeriod)
+                    && $this->emaSlopeNegative($ma, $previousMa)
                 ) {
                     if ($breakoutDirection !== 'short' || $breakoutLevel !== $level) {
                         $breakoutDirection = 'short';
@@ -323,6 +324,7 @@ class StructureTrendEngine
 
             $lastPrice = $close;
             $lastTimestamp = $timestamp;
+            $previousMa = $ma;
         }
 
         if ($quantity > 0 && $lastPrice !== null && $positionDirection !== null) {
@@ -481,26 +483,14 @@ class StructureTrendEngine
         return $swings[count($swings) - 1] ?? null;
     }
 
-    private function emaSlopePositive(array $candles, int $period): bool
+    private function emaSlopePositive(?float $ma, ?float $previousMa): bool
     {
-        $lookback = min(max(3, intdiv($period, 3)), count($candles) - 1);
-
-        if ($lookback < 1) {
-            return false;
-        }
-
-        return $candles[count($candles) - 1]['close'] > $candles[count($candles) - 1 - $lookback]['close'];
+        return $ma !== null && $previousMa !== null && $ma > $previousMa;
     }
 
-    private function emaSlopeNegative(array $candles, int $period): bool
+    private function emaSlopeNegative(?float $ma, ?float $previousMa): bool
     {
-        $lookback = min(max(3, intdiv($period, 3)), count($candles) - 1);
-
-        if ($lookback < 1) {
-            return false;
-        }
-
-        return $candles[count($candles) - 1]['close'] < $candles[count($candles) - 1 - $lookback]['close'];
+        return $ma !== null && $previousMa !== null && $ma < $previousMa;
     }
 
     private function barsSinceTimestamp(array $candles, int $timestamp): int
