@@ -6,6 +6,7 @@ use App\Models\Strategy;
 use App\Models\Trade;
 use App\Services\Trading\Indicators\Ema;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class StructureTrendEngine
 {
@@ -71,6 +72,7 @@ class StructureTrendEngine
         $executionLog = [];
 
         $domeDetections = [];
+        $emaCrossDebug = [];
         $domeCandidateDirection = null;
         $domeStartTimestamp = null;
         $domeStartPrice = null;
@@ -311,8 +313,44 @@ class StructureTrendEngine
                 && $previousClose >= $previousEma
                 && $close < $ma;
 
-            if ($quantity <= 0 && ($crossedUp || $crossedDown)) {
+            if ($crossedUp || $crossedDown) {
                 $newDirection = $crossedUp ? 'long' : 'short';
+
+                $domeStartCondition = $newDirection === 'short'
+                    ? ($open > $close && $close < $ma
+                        && $previousClose !== null
+                        && $previousEma !== null
+                        && $previousClose >= $previousEma)
+                    : ($open < $close && $close > $ma
+                        && $previousClose !== null
+                        && $previousEma !== null
+                        && $previousClose <= $previousEma);
+
+                $crossDebug = [
+                    'direction' => $newDirection,
+                    'time' => $this->formatTimestamp($timestamp),
+                    'time_jalali' => $this->formatTimestampJalali($timestamp),
+                    'open' => $open,
+                    'close' => $close,
+                    'high' => $high,
+                    'low' => $low,
+                    'ema' => $ma,
+                    'previous_close' => $previousClose,
+                    'previous_ema' => $previousEma,
+                    'wick_touches_ema' => $low <= $ma && $high >= $ma,
+                    'close_crossed_ema' => true,
+                    'candle_color_ok' => $newDirection === 'short' ? $open > $close : $open < $close,
+                    'previous_side_ok' => $newDirection === 'short'
+                        ? ($previousClose !== null && $previousEma !== null && $previousClose >= $previousEma)
+                        : ($previousClose !== null && $previousEma !== null && $previousClose <= $previousEma),
+                    'dome_start_condition' => $domeStartCondition,
+                    'direction_allowed' => $newDirection === 'long' ? $allowedLong : $allowedShort,
+                ];
+
+                $emaCrossDebug[] = $crossDebug;
+
+                Log::debug('StructureTrend EMA cross detected', $crossDebug);
+
                 $directionAllowed = $newDirection === 'long' ? $allowedLong : $allowedShort;
 
                 if ($directionAllowed) {
@@ -533,6 +571,7 @@ class StructureTrendEngine
             'final_capital' => $cash,
             'execution_log' => $executionLog,
             'structure_debug' => $debug,
+            'ema_cross_debug' => $emaCrossDebug,
         ];
     }
 
