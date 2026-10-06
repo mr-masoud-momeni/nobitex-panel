@@ -572,6 +572,64 @@ class StructureTrendEngine
     private function formatTimestampJalali(?int $timestamp): ?string
     {
         if (!$timestamp) return null;
-        return jdate(Carbon::createFromTimestamp($timestamp))->format('Y-m-d H:i:s');
+
+        $date = Carbon::createFromTimestamp($timestamp);
+        [$year, $month, $day] = $this->gregorianToJalali(
+            (int) $date->format('Y'),
+            (int) $date->format('m'),
+            (int) $date->format('d')
+        );
+
+        return sprintf(
+            '%04d-%02d-%02d %s',
+            $year,
+            $month,
+            $day,
+            $date->format('H:i:s')
+        );
+    }
+
+    /**
+     * Convert a Gregorian date to the Persian (Jalali) calendar.
+     *
+     * This is intentionally self-contained so the trading engine does not
+     * depend on a non-existent global helper or an additional package.
+     */
+    private function gregorianToJalali(int $gy, int $gm, int $gd): array
+    {
+        $gDayOfYear = $gm <= 2
+            ? 0
+            : (($gm === 3 ? 59 : 59)
+                + (int) floor(($gm - 3) * 30.6)
+                + ($gm > 2 ? (int) floor(($gm - 3) * 0.4) : 0));
+
+        $days = 355666
+            + (365 * $gy)
+            + (int) floor(($gy + 3) / 4)
+            - (int) floor(($gy + 99) / 100)
+            + (int) floor(($gy + 399) / 400)
+            + $gd
+            + $gDayOfYear;
+
+        $jy = -1595 + (33 * (int) floor($days / 12053));
+        $days %= 12053;
+
+        $jy += 4 * (int) floor($days / 1461);
+        $days %= 1461;
+
+        if ($days > 365) {
+            $jy += (int) floor(($days - 1) / 365);
+            $days = ($days - 1) % 365;
+        }
+
+        if ($days < 186) {
+            $jm = 1 + (int) floor($days / 31);
+            $jd = 1 + ($days % 31);
+        } else {
+            $jm = 7 + (int) floor(($days - 186) / 30);
+            $jd = 1 + (($days - 186) % 30);
+        }
+
+        return [$jy, $jm, $jd];
     }
 }
