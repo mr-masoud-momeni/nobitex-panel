@@ -117,19 +117,22 @@ class StructureTrendEngine
             // Inspection-only dome detector.
             // A dome starts with a directional candle entering the opposite
             // side of the EMA, then must move away for the configured number
-            // of candles, return for the configured number of candles, and
-            // finally reach the EMA again.
+            // of candles and finally reach the EMA again.
+            //
+            // The return leg is intentionally permissive: after a valid
+            // outward move, we do not require a minimum number of return
+            // candles or a candle-by-candle monotonic move toward EMA.
             //
             // Lower dome:
             //   - start candle is bearish and closes below EMA
             //   - the start must be a new move into the below-EMA side
-            //   - outward/return candles must stay below EMA; High may touch EMA
+            //   - outward candles must stay below EMA; High may touch EMA
             //   - trough = lowest Close in the whole interval
             //
             // Upper dome is the exact mirror:
             //   - start candle is bullish and closes above EMA
             //   - the start must be a new move into the above-EMA side
-            //   - outward/return candles must stay above EMA; Low may touch EMA
+            //   - outward candles must stay above EMA; Low may touch EMA
             //   - peak = highest Close in the whole interval
             if ($domeCandidateDirection === null) {
                 $bearishStart = $open > $close && $close < $ma;
@@ -173,145 +176,104 @@ class StructureTrendEngine
             } elseif ($domeCandidateDirection !== null) {
                 $isLower = $domeCandidateDirection === 'short';
 
-                // During both outward and return legs the whole candle must be
-                // on the dome side of EMA. Its wick may touch EMA, but may not
-                // cross it. Candle colour is irrelevant here.
+                // During the outward leg the whole candle must be on the dome
+                // side of EMA. Its wick may touch EMA, but may not cross it.
+                // Candle colour is irrelevant.
                 $fullyOnDomeSide = $isLower
                     ? $high <= $ma
                     : $low >= $ma;
 
-                // Reaching EMA ends the candidate. We use wick contact for the
-                // final interaction, so a lower High >= EMA or upper Low <= EMA
-                // is the second EMA contact. A valid dome still needs the
-                // configured outward and return candle counts before completion.
+                // The dome ends when price reaches EMA again. We use wick
+                // contact for this final interaction.
                 $reachedEma = $isLower
                     ? $high >= $ma
                     : $low <= $ma;
 
-                if (!$domeReturning) {
-                    if ($fullyOnDomeSide) {
-                        $domeCandles++;
+                if ($fullyOnDomeSide) {
+                    $domeCandles++;
 
-                        // Keep the true extreme based on Close, not wick.
-                        $isMoreExtreme = $isLower
-                            ? $close < $domePeakPrice
-                            : $close > $domePeakPrice;
+                    // Keep the true extreme based on Close, not wick.
+                    $isMoreExtreme = $isLower
+                        ? $close < $domePeakPrice
+                        : $close > $domePeakPrice;
 
-                        if ($isMoreExtreme) {
-                            $domePeakPrice = $close;
-                            $domePeakTimestamp = $timestamp;
-                        }
-
-                        // At least one candle must genuinely increase its
-                        // distance from EMA. The configured candle count is the
-                        // minimum outward-leg length.
-                        if ($emaDistance > $domePeakDistance) {
-                            $domeMovedAway = true;
-                            $domePeakDistance = $emaDistance;
-                        }
-
-                        if ($domeMovedAway
-                            && $domeCandles >= $minDomeCandles
-                            && $previousDistance !== null
-                            && $emaDistance < $previousDistance
-                        ) {
-                            // This candle is the first return candle.
-                            $domeReturning = true;
-                            $domeReturnCandles = 1;
-                        }
-                    } elseif ($reachedEma) {
-                        // The candidate came back to EMA before completing a
-                        // valid outward leg, so it is not a dome.
-                        $domeCandidateDirection = null;
-                        $domeStartTimestamp = null;
-                        $domeStartPrice = null;
-                        $domePeakTimestamp = null;
-                        $domePeakPrice = null;
-                        $domePeakDistance = 0.0;
-                        $domeMovedAway = false;
-                        $domeCandles = 0;
-                        $domeReturnCandles = 0;
-                        $domeReturning = false;
-                    } else {
-                        // A candle crossed to the other side without touching
-                        // EMA as the final interaction; invalidate this shape.
-                        $domeCandidateDirection = null;
-                        $domeStartTimestamp = null;
-                        $domeStartPrice = null;
-                        $domePeakTimestamp = null;
-                        $domePeakPrice = null;
-                        $domePeakDistance = 0.0;
-                        $domeMovedAway = false;
-                        $domeCandles = 0;
-                        $domeReturnCandles = 0;
-                        $domeReturning = false;
-                    }
-                } else {
-                    if ($fullyOnDomeSide) {
-                        $domeCandles++;
-
-                        $isMoreExtreme = $isLower
-                            ? $close < $domePeakPrice
-                            : $close > $domePeakPrice;
-
-                        if ($isMoreExtreme) {
-                            $domePeakPrice = $close;
-                            $domePeakTimestamp = $timestamp;
-                        }
-
-                        $domePeakDistance = max($domePeakDistance, $emaDistance);
-
-                        // Every return candle must actually move closer to EMA.
-                        $movingTowardEma = $previousDistance !== null
-                            && $emaDistance < $previousDistance;
-
-                        if ($movingTowardEma) {
-                            $domeReturnCandles++;
-                        } else {
-                            // Once the return leg has started, a candle that
-                            // stops moving toward EMA breaks the required return
-                            // sequence. Keep the candidate alive, but restart
-                            // the return count from this point only if a later
-                            // candle resumes the move.
-                            $domeReturnCandles = 0;
-                        }
+                    if ($isMoreExtreme) {
+                        $domePeakPrice = $close;
+                        $domePeakTimestamp = $timestamp;
                     }
 
-                    if ($reachedEma) {
-                        if ($domeCandles >= $minDomeCandles
-                            && $domeReturnCandles >= $minPullbackCandles
-                            && $domeMovedAway
-                        ) {
-                            $domeDetections[] = [
-                                'direction' => $domeCandidateDirection,
-                                'start_time' => $this->formatTimestamp($domeStartTimestamp),
-                                'start_time_jalali' => $this->formatTimestampJalali($domeStartTimestamp),
-                                'start_price' => $domeStartPrice,
-                                'dome_candles' => $domeCandles,
-                                'return_candles' => $domeReturnCandles,
-                                'peak_time' => $this->formatTimestamp($domePeakTimestamp),
-                                'peak_time_jalali' => $this->formatTimestampJalali($domePeakTimestamp),
-                                'peak_price' => $domePeakPrice,
-                                'peak_distance_percent' => $domePeakDistance,
-                                'end_time' => $this->formatTimestamp($timestamp),
-                                'end_time_jalali' => $this->formatTimestampJalali($timestamp),
-                                'end_price' => $close,
-                            ];
-                        }
-
-                        // Consume the completed candidate. The next dome needs
-                        // a fresh directional start candle.
-                        $domeCandidateDirection = null;
-                        $domeStartTimestamp = null;
-                        $domeStartPrice = null;
-                        $domePeakTimestamp = null;
-                        $domePeakPrice = null;
-                        $domePeakDistance = 0.0;
-                        $domeMovedAway = false;
-                        $domeCandles = 0;
-                        $domeReturnCandles = 0;
-                        $domeReturning = false;
+                    // At least one candle must genuinely increase its
+                    // distance from EMA. The configured candle count remains
+                    // the minimum outward-leg length.
+                    if ($emaDistance > $domePeakDistance) {
+                        $domeMovedAway = true;
+                        $domePeakDistance = $emaDistance;
                     }
+
+                    // Once the outward leg is complete, any later movement
+                    // back toward EMA marks the return phase. We deliberately
+                    // do not require that movement to continue monotonically.
+                    if ($domeMovedAway
+                        && $domeCandles >= $minDomeCandles
+                        && $emaDistance < $domePeakDistance
+                    ) {
+                        $domeReturning = true;
+                    }
+
+                    // Informational only: count candles after the return phase
+                    // starts. This count has no effect on qualification.
+                    if ($domeReturning) {
+                        $domeReturnCandles++;
+                    }
+                } elseif (!$reachedEma) {
+                    // A candle crossed to the other side without a valid EMA
+                    // contact, so invalidate this candidate.
+                    $domeCandidateDirection = null;
+                    $domeStartTimestamp = null;
+                    $domeStartPrice = null;
+                    $domePeakTimestamp = null;
+                    $domePeakPrice = null;
+                    $domePeakDistance = 0.0;
+                    $domeMovedAway = false;
+                    $domeCandles = 0;
+                    $domeReturnCandles = 0;
+                    $domeReturning = false;
+                }
+
+                if ($reachedEma) {
+                    // No return-count requirement anymore. Once the shape has
+                    // completed the outward leg and genuinely comes back to
+                    // EMA, it is a detected dome.
+                    if ($domeCandles >= $minDomeCandles && $domeMovedAway) {
+                        $domeDetections[] = [
+                            'direction' => $domeCandidateDirection,
+                            'start_time' => $this->formatTimestamp($domeStartTimestamp),
+                            'start_time_jalali' => $this->formatTimestampJalali($domeStartTimestamp),
+                            'start_price' => $domeStartPrice,
+                            'dome_candles' => $domeCandles,
+                            'return_candles' => $domeReturnCandles,
+                            'peak_time' => $this->formatTimestamp($domePeakTimestamp),
+                            'peak_time_jalali' => $this->formatTimestampJalali($domePeakTimestamp),
+                            'peak_price' => $domePeakPrice,
+                            'peak_distance_percent' => $domePeakDistance,
+                            'end_time' => $this->formatTimestamp($timestamp),
+                            'end_time_jalali' => $this->formatTimestampJalali($timestamp),
+                            'end_price' => $close,
+                        ];
+                    }
+
+                    // Consume the completed candidate. The next dome needs
+                    // a fresh directional start candle.
+                    $domeCandidateDirection = null;
+                    $domeStartTimestamp = null;
+                    $domeStartPrice = null;
+                    $domePeakTimestamp = null;
+                    $domePeakPrice = null;
+                    $domePeakDistance = 0.0;
+                    $domeMovedAway = false;
+                    $domeCandles = 0;
+                    $domeReturnCandles = 0;
+                    $domeReturning = false;
                 }
             }
 
