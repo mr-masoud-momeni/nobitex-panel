@@ -92,6 +92,7 @@ class StructureTrendEngine
             'entry_filters_passed' => 0,
             'entries' => 0,
             'domes' => [],
+            'dome_starts' => [],
         ];
 
         foreach ($candles as $candle) {
@@ -172,6 +173,20 @@ class StructureTrendEngine
                     && $previousClose <= $previousEma;
 
                 if ($bearishStart && $newLowerSide) {
+                    $debug['dome_starts'][] = [
+                        'direction' => 'short',
+                        'time' => $this->formatTimestamp($timestamp),
+                        'time_jalali' => $this->formatTimestampJalali($timestamp),
+                        'open' => $open,
+                        'close' => $close,
+                        'high' => $high,
+                        'low' => $low,
+                        'ema' => $ma,
+                        'ema_distance_percent' => $emaDistance,
+                        'previous_close' => $previousClose,
+                        'previous_ema' => $previousEma,
+                    ];
+
                     $domeCandidateDirection = 'short';
                     $domeStartTimestamp = $timestamp;
                     $domeStartPrice = $close;
@@ -183,6 +198,20 @@ class StructureTrendEngine
                     $domeReturnCandles = 0;
                     $domeReturning = false;
                 } elseif ($bullishStart && $newUpperSide) {
+                    $debug['dome_starts'][] = [
+                        'direction' => 'long',
+                        'time' => $this->formatTimestamp($timestamp),
+                        'time_jalali' => $this->formatTimestampJalali($timestamp),
+                        'open' => $open,
+                        'close' => $close,
+                        'high' => $high,
+                        'low' => $low,
+                        'ema' => $ma,
+                        'ema_distance_percent' => $emaDistance,
+                        'previous_close' => $previousClose,
+                        'previous_ema' => $previousEma,
+                    ];
+
                     $domeCandidateDirection = 'long';
                     $domeStartTimestamp = $timestamp;
                     $domeStartPrice = $close;
