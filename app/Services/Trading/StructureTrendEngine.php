@@ -597,11 +597,14 @@ class StructureTrendEngine
      */
     private function gregorianToJalali(int $gy, int $gm, int $gd): array
     {
-        $gDayOfYear = $gm <= 2
-            ? 0
-            : (($gm === 3 ? 59 : 59)
-                + (int) floor(($gm - 3) * 30.6)
-                + ($gm > 2 ? (int) floor(($gm - 3) * 0.4) : 0));
+        $monthDaysBefore = [
+            0, 31, 59, 90, 120, 151,
+            181, 212, 243, 273, 304, 334,
+        ];
+
+        $gDayOfYear = $monthDaysBefore[$gm - 1]
+            + $gd
+            + (($gm > 2 && (($gy % 4 === 0 && $gy % 100 !== 0) || $gy % 400 === 0)) ? 1 : 0);
 
         $days = 355666
             + (365 * $gy)
