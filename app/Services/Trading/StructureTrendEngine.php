@@ -315,6 +315,16 @@ class StructureTrendEngine
                 }
             }
 
+            $crossedUp = $previousClose !== null
+                && $previousEma !== null
+                && $previousClose <= $previousEma
+                && $close > $ma;
+
+            $crossedDown = $previousClose !== null
+                && $previousEma !== null
+                && $previousClose >= $previousEma
+                && $close < $ma;
+
             /*
              * A new EMA crossing is the only event that replaces an old setup.
              * This is intentional: once a dome/pullback is identified, a failed
