@@ -597,40 +597,41 @@ class StructureTrendEngine
      */
     private function gregorianToJalali(int $gy, int $gm, int $gd): array
     {
-        $monthDaysBefore = [
-            0, 31, 59, 90, 120, 151,
-            181, 212, 243, 273, 304, 334,
-        ];
+        $monthDays = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
-        $gDayOfYear = $monthDaysBefore[$gm - 1]
-            + $gd
-            + (($gm > 2 && (($gy % 4 === 0 && $gy % 100 !== 0) || $gy % 400 === 0)) ? 1 : 0);
-
-        $days = 355666
-            + (365 * $gy)
+        $gDayNo = 365 * $gy
             + (int) floor(($gy + 3) / 4)
             - (int) floor(($gy + 99) / 100)
-            + (int) floor(($gy + 399) / 400)
-            + $gd
-            + $gDayOfYear;
+            + (int) floor(($gy + 399) / 400);
 
-        $jy = -1595 + (33 * (int) floor($days / 12053));
-        $days %= 12053;
-
-        $jy += 4 * (int) floor($days / 1461);
-        $days %= 1461;
-
-        if ($days > 365) {
-            $jy += (int) floor(($days - 1) / 365);
-            $days = ($days - 1) % 365;
+        for ($i = 0; $i < $gm - 1; $i++) {
+            $gDayNo += $monthDays[$i];
         }
 
-        if ($days < 186) {
-            $jm = 1 + (int) floor($days / 31);
-            $jd = 1 + ($days % 31);
+        if ($gm > 2 && (($gy % 4 === 0 && $gy % 100 !== 0) || $gy % 400 === 0)) {
+            $gDayNo++;
+        }
+
+        $gDayNo += $gd;
+        $jDayNo = $gDayNo - 79;
+
+        $jNp = (int) floor($jDayNo / 12053);
+        $jDayNo %= 12053;
+
+        $jy = 979 + (33 * $jNp) + (4 * (int) floor($jDayNo / 1461));
+        $jDayNo %= 1461;
+
+        if ($jDayNo >= 366) {
+            $jy += (int) floor(($jDayNo - 1) / 365);
+            $jDayNo = ($jDayNo - 1) % 365;
+        }
+
+        if ($jDayNo < 186) {
+            $jm = 1 + (int) floor($jDayNo / 31);
+            $jd = 1 + ($jDayNo % 31);
         } else {
-            $jm = 7 + (int) floor(($days - 186) / 30);
-            $jd = 1 + (($days - 186) % 30);
+            $jm = 7 + (int) floor(($jDayNo - 186) / 30);
+            $jd = 1 + (($jDayNo - 186) % 30);
         }
 
         return [$jy, $jm, $jd];
