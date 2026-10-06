@@ -391,7 +391,10 @@ class TradeController extends Controller
                     'losing_trades' => $result['losing_trades'],
                     'backtest_log' => [
                         'executions' => $result['execution_log'],
-                        'structure_debug' => $result['structure_debug'] ?? [],
+                        'structure_debug' => array_merge(
+                            $result['structure_debug'] ?? [],
+                            ['ema_cross_debug' => $result['ema_cross_debug'] ?? []]
+                        ),
                     ],
                     'completed_at' => now(),
                     'stopped_at' => null,
