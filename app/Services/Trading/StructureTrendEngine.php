@@ -183,15 +183,11 @@ class StructureTrendEngine
                     ? $high <= $ma
                     : $low >= $ma;
 
-                // The dome ends when price gets back to EMA. The final
-                // interaction is intentionally loose: a wick crossing/touching
-                // EMA is enough, and being very close to EMA is also enough.
-                // This avoids rejecting visually valid domes because of a tiny
-                // gap between the candle and the EMA.
-                $domeEndTolerancePercent = 0.2;
+                // The dome ends when price reaches EMA again. We use wick
+                // contact for this final interaction.
                 $reachedEma = $isLower
-                    ? $high >= $ma * (1 - $domeEndTolerancePercent / 100)
-                    : $low <= $ma * (1 + $domeEndTolerancePercent / 100);
+                    ? $high >= $ma
+                    : $low <= $ma;
 
                 if ($fullyOnDomeSide) {
                     $domeCandles++;
