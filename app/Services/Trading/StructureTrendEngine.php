@@ -159,24 +159,38 @@ class StructureTrendEngine
             }
 
             // Inspection-only dome detector.
-            // Lower: bearish close below EMA -> at least the configured number
-            // of candles on the lower side -> lowest Close is trough -> return
-            // to EMA by wick. Upper is the exact mirror.
+            // A dome starts when Close crosses to the opposite side of EMA.
+            // Wick touches during the formation phase are allowed and do not
+            // cancel the candidate. The candidate must first create a
+            // meaningful Close-to-EMA distance before a later wick touch can
+            // complete it. If Close crosses back before that distance is made,
+            // the candidate is invalidated and the new side becomes the next
+            // dome candidate.
             if ($domeCandidateDirection === null) {
-                $bearishStart = $open > $close && $close < $ma;
-                $bullishStart = $open < $close && $close > $ma;
-
-                $newLowerSide = $previousClose !== null
+                $crossedUpForDome = $previousClose !== null
                     && $previousEma !== null
-                    && $previousClose >= $previousEma;
+                    && $previousClose <= $previousEma
+                    && $close > $ma;
 
-                $newUpperSide = $previousClose !== null
+                $crossedDownForDome = $previousClose !== null
                     && $previousEma !== null
-                    && $previousClose <= $previousEma;
+                    && $previousClose >= $previousEma
+                    && $close < $ma;
 
-                if ($bearishStart && $newLowerSide) {
+                if ($crossedDownForDome || $crossedUpForDome) {
+                    $domeCandidateDirection = $crossedDownForDome ? 'short' : 'long';
+                    $domeStartTimestamp = $timestamp;
+                    $domeStartPrice = $close;
+                    $domePeakTimestamp = $timestamp;
+                    $domePeakPrice = $close;
+                    $domePeakDistance = $emaDistance;
+                    $domeMovedAway = $emaDistance >= $minEmaDistancePercent;
+                    $domeCandles = 1;
+                    $domeReturnCandles = 0;
+                    $domeReturning = false;
+
                     $debug['dome_starts'][] = [
-                        'direction' => 'short',
+                        'direction' => $domeCandidateDirection,
                         'time' => $this->formatTimestamp($timestamp),
                         'time_jalali' => $this->formatTimestampJalali($timestamp),
                         'open' => $open,
@@ -188,49 +202,43 @@ class StructureTrendEngine
                         'previous_close' => $previousClose,
                         'previous_ema' => $previousEma,
                     ];
-
-                    $domeCandidateDirection = 'short';
-                    $domeStartTimestamp = $timestamp;
-                    $domeStartPrice = $close;
-                    $domePeakTimestamp = $timestamp;
-                    $domePeakPrice = $close;
-                    $domePeakDistance = $emaDistance;
-                    $domeMovedAway = false;
-                    $domeCandles = 1;
-                    $domeReturnCandles = 0;
-                    $domeReturning = false;
-                } elseif ($bullishStart && $newUpperSide) {
-                    $debug['dome_starts'][] = [
-                        'direction' => 'long',
-                        'time' => $this->formatTimestamp($timestamp),
-                        'time_jalali' => $this->formatTimestampJalali($timestamp),
-                        'open' => $open,
-                        'close' => $close,
-                        'high' => $high,
-                        'low' => $low,
-                        'ema' => $ma,
-                        'ema_distance_percent' => $emaDistance,
-                        'previous_close' => $previousClose,
-                        'previous_ema' => $previousEma,
-                    ];
-
-                    $domeCandidateDirection = 'long';
-                    $domeStartTimestamp = $timestamp;
-                    $domeStartPrice = $close;
-                    $domePeakTimestamp = $timestamp;
-                    $domePeakPrice = $close;
-                    $domePeakDistance = $emaDistance;
-                    $domeMovedAway = false;
-                    $domeCandles = 1;
-                    $domeReturnCandles = 0;
-                    $domeReturning = false;
                 }
-            } elseif ($domeCandidateDirection !== null) {
+            } else {
                 $isLower = $domeCandidateDirection === 'short';
-                $fullyOnDomeSide = $isLower ? $high <= $ma : $low >= $ma;
+                $closeOnDomeSide = $isLower ? $close < $ma : $close > $ma;
+                $closeOnOppositeSide = $isLower ? $close > $ma : $close < $ma;
                 $reachedEma = $isLower ? $high >= $ma : $low <= $ma;
 
-                if ($fullyOnDomeSide) {
+                // Close crossing to the opposite side invalidates the current
+                // candidate. That same candle starts the opposite candidate.
+                if ($closeOnOppositeSide) {
+                    $domeCandidateDirection = $isLower ? 'long' : 'short';
+                    $domeStartTimestamp = $timestamp;
+                    $domeStartPrice = $close;
+                    $domePeakTimestamp = $timestamp;
+                    $domePeakPrice = $close;
+                    $domePeakDistance = $emaDistance;
+                    $domeMovedAway = $emaDistance >= $minEmaDistancePercent;
+                    $domeCandles = 1;
+                    $domeReturnCandles = 0;
+                    $domeReturning = false;
+
+                    $debug['dome_starts'][] = [
+                        'direction' => $domeCandidateDirection,
+                        'time' => $this->formatTimestamp($timestamp),
+                        'time_jalali' => $this->formatTimestampJalali($timestamp),
+                        'open' => $open,
+                        'close' => $close,
+                        'high' => $high,
+                        'low' => $low,
+                        'ema' => $ma,
+                        'ema_distance_percent' => $emaDistance,
+                        'previous_close' => $previousClose,
+                        'previous_ema' => $previousEma,
+                    ];
+                } elseif ($closeOnDomeSide) {
+                    // The Close remains on the dome side. Wick interaction with
+                    // EMA is allowed while the dome is being formed.
                     $domeCandles++;
 
                     $isMoreExtreme = $isLower
@@ -247,9 +255,12 @@ class StructureTrendEngine
                         $domePeakDistance = $emaDistance;
                     }
 
+                    // Once a meaningful distance has been created, a later
+                    // reduction in Close-to-EMA distance marks the return phase.
                     if ($domeMovedAway
                         && $domeCandles >= $minDomeCandles
-                        && $emaDistance < $domePeakDistance
+                        && $previousDistance !== null
+                        && $emaDistance < $previousDistance
                     ) {
                         $domeReturning = true;
                     }
@@ -257,21 +268,15 @@ class StructureTrendEngine
                     if ($domeReturning) {
                         $domeReturnCandles++;
                     }
-                } elseif (!$reachedEma) {
-                    $domeCandidateDirection = null;
-                    $domeStartTimestamp = null;
-                    $domeStartPrice = null;
-                    $domePeakTimestamp = null;
-                    $domePeakPrice = null;
-                    $domePeakDistance = 0.0;
-                    $domeMovedAway = false;
-                    $domeCandles = 0;
-                    $domeReturnCandles = 0;
-                    $domeReturning = false;
-                }
 
-                if ($reachedEma) {
-                    if ($domeCandles >= $minDomeCandles && $domeMovedAway) {
+                    // A wick touching EMA before confirmation is not a failure.
+                    // After confirmation it completes the dome only when we are
+                    // actually in the return phase.
+                    if ($reachedEma
+                        && $domeMovedAway
+                        && $domeCandles >= $minDomeCandles
+                        && $domeReturning
+                    ) {
                         $domeDetections[] = [
                             'direction' => $domeCandidateDirection,
                             'start_time' => $this->formatTimestamp($domeStartTimestamp),
@@ -288,18 +293,18 @@ class StructureTrendEngine
                             'end_price' => $close,
                         ];
                         $debug['dome_detected']++;
-                    }
 
-                    $domeCandidateDirection = null;
-                    $domeStartTimestamp = null;
-                    $domeStartPrice = null;
-                    $domePeakTimestamp = null;
-                    $domePeakPrice = null;
-                    $domePeakDistance = 0.0;
-                    $domeMovedAway = false;
-                    $domeCandles = 0;
-                    $domeReturnCandles = 0;
-                    $domeReturning = false;
+                        $domeCandidateDirection = null;
+                        $domeStartTimestamp = null;
+                        $domeStartPrice = null;
+                        $domePeakTimestamp = null;
+                        $domePeakPrice = null;
+                        $domePeakDistance = 0.0;
+                        $domeMovedAway = false;
+                        $domeCandles = 0;
+                        $domeReturnCandles = 0;
+                        $domeReturning = false;
+                    }
                 }
             }
 
