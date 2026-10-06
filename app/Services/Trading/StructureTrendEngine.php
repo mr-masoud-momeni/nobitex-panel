@@ -572,6 +572,6 @@ class StructureTrendEngine
     private function formatTimestampJalali(?int $timestamp): ?string
     {
         if (!$timestamp) return null;
-        return Carbon::createFromTimestamp($timestamp)->format('Y-m-d H:i:s');
+        return jdate(Carbon::createFromTimestamp($timestamp))->format('Y-m-d H:i:s');
     }
 }
