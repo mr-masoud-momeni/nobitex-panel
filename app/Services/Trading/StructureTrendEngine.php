@@ -597,18 +597,24 @@ class StructureTrendEngine
      */
     private function gregorianToJalali(int $gy, int $gm, int $gd): array
     {
-        $monthDays = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+        // Standard Gregorian -> Jalali conversion.
+        $gDaysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+        $jDaysInMonth = [31, 31, 31, 31, 31, 31, 30, 30, 30, 30, 30, 29];
+
+        $gy -= 1600;
+        $gm -= 1;
+        $gd -= 1;
 
         $gDayNo = 365 * $gy
             + (int) floor(($gy + 3) / 4)
             - (int) floor(($gy + 99) / 100)
             + (int) floor(($gy + 399) / 400);
 
-        for ($i = 0; $i < $gm - 1; $i++) {
-            $gDayNo += $monthDays[$i];
+        for ($i = 0; $i < $gm; $i++) {
+            $gDayNo += $gDaysInMonth[$i];
         }
 
-        if ($gm > 2 && (($gy % 4 === 0 && $gy % 100 !== 0) || $gy % 400 === 0)) {
+        if ($gm > 1 && (($gy + 1600) % 4 === 0 && (($gy + 1600) % 100 !== 0 || ($gy + 1600) % 400 === 0))) {
             $gDayNo++;
         }
 
@@ -618,7 +624,7 @@ class StructureTrendEngine
         $jNp = (int) floor($jDayNo / 12053);
         $jDayNo %= 12053;
 
-        $jy = 979 + (33 * $jNp) + (4 * (int) floor($jDayNo / 1461));
+        $jy = 979 + 33 * $jNp + 4 * (int) floor($jDayNo / 1461);
         $jDayNo %= 1461;
 
         if ($jDayNo >= 366) {
@@ -626,14 +632,12 @@ class StructureTrendEngine
             $jDayNo = ($jDayNo - 1) % 365;
         }
 
-        if ($jDayNo < 186) {
-            $jm = 1 + (int) floor($jDayNo / 31);
-            $jd = 1 + ($jDayNo % 31);
-        } else {
-            $jm = 7 + (int) floor(($jDayNo - 186) / 30);
-            $jd = 1 + (($jDayNo - 186) % 30);
+        for ($i = 0; $i < 11 && $jDayNo >= $jDaysInMonth[$i]; $i++) {
+            $jDayNo -= $jDaysInMonth[$i];
         }
 
+        $jm = $i + 1;
+        $jd = $jDayNo + 1;
+
         return [$jy, $jm, $jd];
-    }
-}
+    }}
