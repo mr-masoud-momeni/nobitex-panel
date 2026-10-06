@@ -24,6 +24,17 @@ class StructureTrendEngine
         $direction = $strategy->direction ?: 'long';
         $ema = new Ema($maPeriod);
 
+        // The market-data layer may intentionally provide candles before the
+        // requested start date so indicators can warm up. Those candles must
+        // never create a dome or a trade. The end date is a hard upper bound:
+        // candles after it are not part of the backtest either.
+        $startTimestamp = $trade->start_date instanceof \DateTimeInterface
+            ? $trade->start_date->getTimestamp()
+            : Carbon::parse($trade->start_date)->getTimestamp();
+        $endTimestamp = $trade->end_date instanceof \DateTimeInterface
+            ? $trade->end_date->getTimestamp()
+            : Carbon::parse($trade->end_date)->getTimestamp();
+
         $cash = (float) $trade->initial_capital;
         $feeRate = max(0.0, (float) ($trade->fee_percent ?? 0)) / 100;
 
@@ -35,17 +46,6 @@ class StructureTrendEngine
         $entryTimestamp = null;
         $entryReason = null;
 
-        /*
-         * Setup state:
-         *
-         * 1. A close crosses the EMA -> activate a flag.
-         * 2. Price must move far enough from the EMA.
-         * 3. That distance must remain extended for N candles.
-         * 4. Distance starts shrinking -> pullback begins.
-         * 5. After M meaningful pullback candles, wait for a confirmation candle.
-         * 6. If confirmation fails, keep waiting. Do not start another dome.
-         * 7. Only a new EMA crossing cancels the whole setup and starts a new one.
-         */
         $setupDirection = null;
         $domeActive = false;
         $domeCount = 0;
@@ -54,12 +54,10 @@ class StructureTrendEngine
         $pullbackCount = 0;
         $waitingConfirmation = false;
 
-        // Previous candle/EMA are needed to detect actual crossings.
         $previousClose = null;
         $previousEma = null;
         $previousDistance = null;
 
-        // Exit state: close-based reference high/low.
         $sequenceCount = 0;
         $referenceHigh = null;
         $referenceLow = null;
@@ -97,11 +95,18 @@ class StructureTrendEngine
         ];
 
         foreach ($candles as $candle) {
+            $timestamp = (int) $candle->timestamp;
+
+            // Stop at the requested end date. This is important when the API
+            // returns more candles than the selected test window.
+            if ($timestamp > $endTimestamp) {
+                break;
+            }
+
             $close = (float) $candle->close;
             $open = (float) $candle->open;
             $high = (float) $candle->high;
             $low = (float) $candle->low;
-            $timestamp = (int) $candle->timestamp;
             $ma = $ema->update($close);
 
             if ($ma === null || $ma <= 0) {
@@ -114,34 +119,50 @@ class StructureTrendEngine
             $allowedLong = $direction === 'long' || $direction === 'both';
             $allowedShort = $direction === 'short' || $direction === 'both';
 
+            // Warm-up candles are used ONLY to bring EMA to the correct state.
+            // They cannot start/complete a dome and cannot open/close trades.
+            if ($timestamp < $startTimestamp) {
+                $previousClose = $close;
+                $previousEma = $ma;
+                $previousDistance = $emaDistance;
+                $lastPrice = $close;
+                $lastTimestamp = $timestamp;
+                continue;
+            }
+
+            // Do not carry a dome/setup that began before the requested window.
+            // The first eligible candle is the beginning of the test window.
+            if ($timestamp === $startTimestamp) {
+                $domeCandidateDirection = null;
+                $domeStartTimestamp = null;
+                $domeStartPrice = null;
+                $domePeakTimestamp = null;
+                $domePeakPrice = null;
+                $domePeakDistance = 0.0;
+                $domeMovedAway = false;
+                $domeCandles = 0;
+                $domeReturnCandles = 0;
+                $domeReturning = false;
+
+                $this->resetSetup(
+                    $setupDirection,
+                    $domeActive,
+                    $domeCount,
+                    $peakDistance,
+                    $pullbackStarted,
+                    $pullbackCount,
+                    $waitingConfirmation
+                );
+            }
+
             // Inspection-only dome detector.
-            // A dome starts with a directional candle entering the opposite
-            // side of the EMA, then must move away for the configured number
-            // of candles and finally reach the EMA again.
-            //
-            // The return leg is intentionally permissive: after a valid
-            // outward move, we do not require a minimum number of return
-            // candles or a candle-by-candle monotonic move toward EMA.
-            //
-            // Lower dome:
-            //   - start candle is bearish and closes below EMA
-            //   - the start must be a new move into the below-EMA side
-            //   - outward candles must stay below EMA; High may touch EMA
-            //   - trough = lowest Close in the whole interval
-            //
-            // Upper dome is the exact mirror:
-            //   - start candle is bullish and closes above EMA
-            //   - the start must be a new move into the above-EMA side
-            //   - outward candles must stay above EMA; Low may touch EMA
-            //   - peak = highest Close in the whole interval
+            // Lower: bearish close below EMA -> at least the configured number
+            // of candles on the lower side -> lowest Close is trough -> return
+            // to EMA by wick. Upper is the exact mirror.
             if ($domeCandidateDirection === null) {
                 $bearishStart = $open > $close && $close < $ma;
                 $bullishStart = $open < $close && $close > $ma;
 
-                // A start is only valid when this candle newly enters its EMA
-                // side. This covers both a normal body crossing and a gap into
-                // the new side, while preventing every later candle on the same
-                // side from starting another dome.
                 $newLowerSide = $previousClose !== null
                     && $previousEma !== null
                     && $previousClose >= $previousEma;
@@ -175,24 +196,12 @@ class StructureTrendEngine
                 }
             } elseif ($domeCandidateDirection !== null) {
                 $isLower = $domeCandidateDirection === 'short';
-
-                // During the outward leg the whole candle must be on the dome
-                // side of EMA. Its wick may touch EMA, but may not cross it.
-                // Candle colour is irrelevant.
-                $fullyOnDomeSide = $isLower
-                    ? $high <= $ma
-                    : $low >= $ma;
-
-                // The dome ends when price reaches EMA again. We use wick
-                // contact for this final interaction.
-                $reachedEma = $isLower
-                    ? $high >= $ma
-                    : $low <= $ma;
+                $fullyOnDomeSide = $isLower ? $high <= $ma : $low >= $ma;
+                $reachedEma = $isLower ? $high >= $ma : $low <= $ma;
 
                 if ($fullyOnDomeSide) {
                     $domeCandles++;
 
-                    // Keep the true extreme based on Close, not wick.
                     $isMoreExtreme = $isLower
                         ? $close < $domePeakPrice
                         : $close > $domePeakPrice;
@@ -202,17 +211,11 @@ class StructureTrendEngine
                         $domePeakTimestamp = $timestamp;
                     }
 
-                    // At least one candle must genuinely increase its
-                    // distance from EMA. The configured candle count remains
-                    // the minimum outward-leg length.
                     if ($emaDistance > $domePeakDistance) {
                         $domeMovedAway = true;
                         $domePeakDistance = $emaDistance;
                     }
 
-                    // Once the outward leg is complete, any later movement
-                    // back toward EMA marks the return phase. We deliberately
-                    // do not require that movement to continue monotonically.
                     if ($domeMovedAway
                         && $domeCandles >= $minDomeCandles
                         && $emaDistance < $domePeakDistance
@@ -220,14 +223,10 @@ class StructureTrendEngine
                         $domeReturning = true;
                     }
 
-                    // Informational only: count candles after the return phase
-                    // starts. This count has no effect on qualification.
                     if ($domeReturning) {
                         $domeReturnCandles++;
                     }
                 } elseif (!$reachedEma) {
-                    // A candle crossed to the other side without a valid EMA
-                    // contact, so invalidate this candidate.
                     $domeCandidateDirection = null;
                     $domeStartTimestamp = null;
                     $domeStartPrice = null;
@@ -241,9 +240,6 @@ class StructureTrendEngine
                 }
 
                 if ($reachedEma) {
-                    // No return-count requirement anymore. Once the shape has
-                    // completed the outward leg and genuinely comes back to
-                    // EMA, it is a detected dome.
                     if ($domeCandles >= $minDomeCandles && $domeMovedAway) {
                         $domeDetections[] = [
                             'direction' => $domeCandidateDirection,
@@ -260,10 +256,9 @@ class StructureTrendEngine
                             'end_time_jalali' => $this->formatTimestampJalali($timestamp),
                             'end_price' => $close,
                         ];
+                        $debug['dome_detected']++;
                     }
 
-                    // Consume the completed candidate. The next dome needs
-                    // a fresh directional start candle.
                     $domeCandidateDirection = null;
                     $domeStartTimestamp = null;
                     $domeStartPrice = null;
@@ -287,11 +282,6 @@ class StructureTrendEngine
                 && $previousClose >= $previousEma
                 && $close < $ma;
 
-            /*
-             * A new EMA crossing is the only event that replaces an old setup.
-             * This is intentional: once a dome/pullback is identified, a failed
-             * confirmation must not immediately create another setup on the same side.
-             */
             if ($quantity <= 0 && ($crossedUp || $crossedDown)) {
                 $newDirection = $crossedUp ? 'long' : 'short';
                 $directionAllowed = $newDirection === 'long' ? $allowedLong : $allowedShort;
@@ -306,44 +296,23 @@ class StructureTrendEngine
                     $waitingConfirmation = false;
                     $debug['ema_crosses']++;
                 } else {
-                    $this->resetSetup(
-                        $setupDirection,
-                        $domeActive,
-                        $domeCount,
-                        $peakDistance,
-                        $pullbackStarted,
-                        $pullbackCount,
-                        $waitingConfirmation
-                    );
+                    $this->resetSetup($setupDirection, $domeActive, $domeCount, $peakDistance, $pullbackStarted, $pullbackCount, $waitingConfirmation);
                 }
             }
 
-            // Build the setup only while no position is open.
             if ($quantity <= 0 && $setupDirection !== null) {
                 $directionStillValid = $setupDirection === 'long' ? $close > $ma : $close < $ma;
 
-                // Crossing back through EMA cancels the setup.
                 if (!$directionStillValid) {
-                    $this->resetSetup(
-                        $setupDirection,
-                        $domeActive,
-                        $domeCount,
-                        $peakDistance,
-                        $pullbackStarted,
-                        $pullbackCount,
-                        $waitingConfirmation
-                    );
+                    $this->resetSetup($setupDirection, $domeActive, $domeCount, $peakDistance, $pullbackStarted, $pullbackCount, $waitingConfirmation);
                 } elseif (!$waitingConfirmation) {
                     if (!$domeActive) {
-                        // The EMA crossing has activated the flag, but the dome
-                        // only starts once the configured distance is reached.
                         if ($emaDistance >= $minEmaDistancePercent) {
                             $domeActive = true;
                             $domeCount = 1;
                             $peakDistance = $emaDistance;
                         }
                     } elseif (!$pullbackStarted) {
-                        // Keep extending the dome while distance is stable/increasing.
                         if ($emaDistance >= $minEmaDistancePercent) {
                             if ($peakDistance === null || $emaDistance >= $peakDistance) {
                                 $peakDistance = $emaDistance;
@@ -352,8 +321,6 @@ class StructureTrendEngine
                                 && ($previousDistance - $emaDistance) >= $minPullbackSlopePercent
                                 && $domeCount >= $minDomeCandles
                             ) {
-                                // Distance has turned down after a sufficiently
-                                // long extension: the dome is complete.
                                 $pullbackStarted = true;
                                 $pullbackCount = 1;
                                 $debug['dome_detected']++;
@@ -369,20 +336,12 @@ class StructureTrendEngine
                             $debug['pullback_started']++;
                         }
                     } else {
-                        // Pullback: count only candles with a meaningful decrease
-                        // in distance from EMA.
-                        $distanceDrop = $previousDistance !== null
-                            ? $previousDistance - $emaDistance
-                            : 0.0;
-
+                        $distanceDrop = $previousDistance !== null ? $previousDistance - $emaDistance : 0.0;
                         if ($distanceDrop >= $minPullbackSlopePercent) {
                             $pullbackCount++;
                         }
 
-                        // Once enough pullback candles exist, an expansion away
-                        // from EMA is the confirmation candidate.
-                        $distanceTurnsBack = $previousDistance !== null
-                            && $emaDistance > $previousDistance;
+                        $distanceTurnsBack = $previousDistance !== null && $emaDistance > $previousDistance;
 
                         if ($pullbackCount >= $minPullbackCandles && $distanceTurnsBack) {
                             $debug['pullback_completed']++;
@@ -391,18 +350,12 @@ class StructureTrendEngine
                             $candleDirectionOk = $setupDirection === 'long'
                                 ? $close > $open
                                 : $close < $open;
-
                             $candleSizeOk = $this->candleBodyPercent($open, $close) >= $minEntryCandlePercent;
                             $emaDistanceOk = $emaDistance >= $minEmaDistancePercent;
 
                             if ($candleDirectionOk && $candleSizeOk && $emaDistanceOk) {
                                 $debug['entry_filters_passed']++;
-
-                                $notional = $this->positionNotional(
-                                    $cash,
-                                    (float) ($strategy->risk_percent ?? 0),
-                                    (float) ($strategy->stop_loss ?? 0)
-                                );
+                                $notional = $this->positionNotional($cash, (float) ($strategy->risk_percent ?? 0), (float) ($strategy->stop_loss ?? 0));
 
                                 if ($notional > 0 && $close > 0) {
                                     $quantity = $notional / $close;
@@ -437,24 +390,10 @@ class StructureTrendEngine
                                         $referenceHigh = $close;
                                         $referenceLow = $close;
 
-                                        $this->resetSetup(
-                                            $setupDirection,
-                                            $domeActive,
-                                            $domeCount,
-                                            $peakDistance,
-                                            $pullbackStarted,
-                                            $pullbackCount,
-                                            $waitingConfirmation
-                                        );
+                                        $this->resetSetup($setupDirection, $domeActive, $domeCount, $peakDistance, $pullbackStarted, $pullbackCount, $waitingConfirmation);
                                     }
                                 }
                             } else {
-                                /*
-                                 * Dome and pullback were real, but this candle did
-                                 * not confirm. Freeze this setup. We now wait for a
-                                 * fresh EMA crossing instead of repeatedly re-testing
-                                 * every candle in the same structure.
-                                 */
                                 $debug['confirmation_rejected']++;
                                 $waitingConfirmation = true;
                             }
@@ -463,23 +402,13 @@ class StructureTrendEngine
                 }
             }
 
-            // Risk exits are checked before the structural trailing exit.
             if ($quantity > 0 && $positionDirection !== null) {
-                $exitPrice = $this->exitPriceFromRisk(
-                    $entryPrice,
-                    $high,
-                    $low,
-                    $strategy,
-                    $positionDirection
-                );
+                $exitPrice = $this->exitPriceFromRisk($entryPrice, $high, $low, $strategy, $positionDirection);
                 $exitReason = $exitPrice !== null ? 'stop_loss_or_take_profit' : null;
 
                 if ($exitPrice === null) {
                     if ($positionDirection === 'long') {
-                        if ($referenceHigh === null) {
-                            $referenceHigh = $entryPrice;
-                        }
-
+                        if ($referenceHigh === null) $referenceHigh = $entryPrice;
                         if ($close > $referenceHigh) {
                             $referenceHigh = $close;
                             $sequenceCount = 0;
@@ -491,10 +420,7 @@ class StructureTrendEngine
                             }
                         }
                     } else {
-                        if ($referenceLow === null) {
-                            $referenceLow = $entryPrice;
-                        }
-
+                        if ($referenceLow === null) $referenceLow = $entryPrice;
                         if ($close < $referenceLow) {
                             $referenceLow = $close;
                             $sequenceCount = 0;
@@ -509,20 +435,9 @@ class StructureTrendEngine
                 }
 
                 if ($exitPrice !== null) {
-                    [$cash, $profit] = $this->closePosition(
-                        $cash,
-                        $quantity,
-                        $entryPrice,
-                        $exitPrice,
-                        (float) ($trade->fee_percent ?? 0),
-                        $entryValue,
-                        $entryFee,
-                        $positionDirection
-                    );
-
+                    [$cash, $profit] = $this->closePosition($cash, $quantity, $entryPrice, $exitPrice, (float) ($trade->fee_percent ?? 0), $entryValue, $entryFee, $positionDirection);
                     $totalTrades++;
                     $profit >= 0 ? $winningTrades++ : $losingTrades++;
-
                     $executionLog[] = [
                         'direction' => $positionDirection,
                         'entry_reason' => $entryReason,
@@ -536,7 +451,6 @@ class StructureTrendEngine
                         'exit_reason' => $exitReason,
                         'cash_after' => $cash,
                     ];
-
                     $quantity = 0.0;
                     $positionDirection = null;
                     $entryPrice = null;
@@ -558,20 +472,9 @@ class StructureTrendEngine
         }
 
         if ($quantity > 0 && $lastPrice !== null && $positionDirection !== null) {
-            [$cash, $profit] = $this->closePosition(
-                $cash,
-                $quantity,
-                $entryPrice,
-                $lastPrice,
-                (float) ($trade->fee_percent ?? 0),
-                $entryValue,
-                $entryFee,
-                $positionDirection
-            );
-
+            [$cash, $profit] = $this->closePosition($cash, $quantity, $entryPrice, $lastPrice, (float) ($trade->fee_percent ?? 0), $entryValue, $entryFee, $positionDirection);
             $totalTrades++;
             $profit >= 0 ? $winningTrades++ : $losingTrades++;
-
             $executionLog[] = [
                 'direction' => $positionDirection,
                 'entry_reason' => $entryReason,
@@ -590,7 +493,6 @@ class StructureTrendEngine
         $initialCapital = (float) $trade->initial_capital;
         $resultAmount = $cash - $initialCapital;
         $resultPercent = $initialCapital > 0 ? ($resultAmount / $initialCapital) * 100 : 0;
-
         $debug['domes'] = $domeDetections;
 
         return [
@@ -605,15 +507,8 @@ class StructureTrendEngine
         ];
     }
 
-    private function resetSetup(
-        ?string &$direction,
-        bool &$domeActive,
-        int &$domeCount,
-        ?float &$peakDistance,
-        bool &$pullbackStarted,
-        int &$pullbackCount,
-        bool &$waitingConfirmation
-    ): void {
+    private function resetSetup(?string &$direction, bool &$domeActive, int &$domeCount, ?float &$peakDistance, bool &$pullbackStarted, int &$pullbackCount, bool &$waitingConfirmation): void
+    {
         $direction = null;
         $domeActive = false;
         $domeCount = 0;
@@ -625,118 +520,58 @@ class StructureTrendEngine
 
     private function candleBodyPercent(float $open, float $close): float
     {
-        $base = min($open, $close);
-        if ($base <= 0) {
-            return 0;
-        }
-
-        return (abs($close - $open) / $base) * 100;
-    }
-
-    private function positionNotional(float $cash, float $riskPercent, float $stopLoss): float
-    {
-        if ($cash <= 0) {
-            return 0;
-        }
-
-        if ($riskPercent > 0 && $stopLoss > 0) {
-            return min($cash, ($cash * ($riskPercent / 100)) / ($stopLoss / 100));
-        }
-
-        return $cash;
+        return $close > 0 ? (abs($close - $open) / $close) * 100 : 0.0;
     }
 
     private function exitPriceFromRisk(?float $entryPrice, float $high, float $low, Strategy $strategy, string $direction): ?float
     {
-        if ($entryPrice === null) {
-            return null;
+        if ($entryPrice === null) return null;
+        $stopLoss = max(0.0, (float) ($strategy->stop_loss ?? 0));
+        $takeProfit = max(0.0, (float) ($strategy->take_profit ?? 0));
+        if ($direction === 'long') {
+            $sl = $stopLoss > 0 ? $entryPrice * (1 - $stopLoss / 100) : null;
+            $tp = $takeProfit > 0 ? $entryPrice * (1 + $takeProfit / 100) : null;
+            if ($sl !== null && $low <= $sl) return $sl;
+            if ($tp !== null && $high >= $tp) return $tp;
+        } else {
+            $sl = $stopLoss > 0 ? $entryPrice * (1 + $stopLoss / 100) : null;
+            $tp = $takeProfit > 0 ? $entryPrice * (1 - $takeProfit / 100) : null;
+            if ($sl !== null && $high >= $sl) return $sl;
+            if ($tp !== null && $low <= $tp) return $tp;
         }
-
-        $stopLoss = (float) ($strategy->stop_loss ?? 0);
-        $takeProfit = (float) ($strategy->take_profit ?? 0);
-
-        if ($direction === 'short') {
-            if ($stopLoss > 0 && $high >= $entryPrice * (1 + $stopLoss / 100)) {
-                return $entryPrice * (1 + $stopLoss / 100);
-            }
-
-            if ($takeProfit > 0 && $low <= $entryPrice * (1 - $takeProfit / 100)) {
-                return $entryPrice * (1 - $takeProfit / 100);
-            }
-
-            return null;
-        }
-
-        if ($stopLoss > 0 && $low <= $entryPrice * (1 - $stopLoss / 100)) {
-            return $entryPrice * (1 - $stopLoss / 100);
-        }
-
-        if ($takeProfit > 0 && $high >= $entryPrice * (1 + $takeProfit / 100)) {
-            return $entryPrice * (1 + $takeProfit / 100);
-        }
-
         return null;
+    }
+
+    private function positionNotional(float $cash, float $riskPercent, float $stopLoss): float
+    {
+        if ($cash <= 0) return 0.0;
+        if ($riskPercent <= 0 || $stopLoss <= 0) return $cash;
+        return $cash * ($riskPercent / 100) / ($stopLoss / 100);
     }
 
     private function closePosition(float $cash, float $quantity, float $entryPrice, float $exitPrice, float $feePercent, float $entryValue, float $entryFee, string $direction): array
     {
         $feeRate = max(0.0, $feePercent) / 100;
-        $exitGross = $quantity * $exitPrice;
-        $exitFee = $exitGross * $feeRate;
-
-        if ($direction === 'short') {
-            $profit = ($quantity * ($entryPrice - $exitPrice)) - $entryFee - $exitFee;
-            return [$cash + $profit, $profit];
+        $gross = $quantity * $exitPrice;
+        $exitFee = $gross * $feeRate;
+        if ($direction === 'long') {
+            $newCash = $gross - $exitFee;
+            $profit = $newCash - $entryValue;
+        } else {
+            $newCash = $cash + ($entryPrice - $exitPrice) * $quantity - $exitFee;
+            $profit = $newCash - $entryFee - $entryValue;
         }
-
-        $proceeds = $exitGross - $exitFee;
-        $profit = $proceeds - $entryValue;
-
-        return [$cash + $proceeds, $profit];
+        return [$newCash, $profit];
     }
 
     private function formatTimestamp(?int $timestamp): ?string
     {
-        return $timestamp ? Carbon::createFromTimestamp($timestamp, 'Asia/Tehran')->format('Y-m-d H:i:s') : null;
+        return $timestamp ? Carbon::createFromTimestamp($timestamp)->format('Y-m-d H:i:s') : null;
     }
 
     private function formatTimestampJalali(?int $timestamp): ?string
     {
-        if (!$timestamp) {
-            return null;
-        }
-
-        $date = Carbon::createFromTimestamp($timestamp, 'Asia/Tehran');
-        [$year, $month, $day] = $this->gregorianToJalali(
-            (int) $date->format('Y'),
-            (int) $date->format('m'),
-            (int) $date->format('d')
-        );
-
-        return sprintf('%04d/%02d/%02d %s', $year, $month, $day, $date->format('H:i'));
-    }
-
-    private function gregorianToJalali(int $gy, int $gm, int $gd): array
-    {
-        $gDaysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-        $jDaysInMonth = [31, 31, 31, 31, 31, 31, 30, 30, 30, 30, 30, 29];
-        $gy -= 1600;
-        $gm -= 1;
-        $gd -= 1;
-        $gDayNo = 365 * $gy + intdiv($gy + 3, 4) - intdiv($gy + 99, 100) + intdiv($gy + 399, 400);
-        for ($i = 0; $i < $gm; $i++) $gDayNo += $gDaysInMonth[$i];
-        if ($gm > 1 && (($gy + 1600) % 4 === 0 && (($gy + 1600) % 100 !== 0 || ($gy + 1600) % 400 === 0))) $gDayNo++;
-        $gDayNo += $gd;
-        $jDayNo = $gDayNo - 79;
-        $jNp = intdiv($jDayNo, 12053);
-        $jDayNo %= 12053;
-        $jy = 979 + 33 * $jNp + 4 * intdiv($jDayNo, 1461);
-        $jDayNo %= 1461;
-        if ($jDayNo >= 366) {
-            $jy += intdiv($jDayNo - 1, 365);
-            $jDayNo = ($jDayNo - 1) % 365;
-        }
-        for ($i = 0; $i < 11 && $jDayNo >= $jDaysInMonth[$i]; $i++) $jDayNo -= $jDaysInMonth[$i];
-        return [$jy, $i + 1, $jDayNo + 1];
+        if (!$timestamp) return null;
+        return Carbon::createFromTimestamp($timestamp)->format('Y-m-d H:i:s');
     }
 }
