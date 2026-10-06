@@ -116,6 +116,60 @@
                     <div class="alert alert-info">پس از اجرای بک‌تست، جزئیات ورود و خروج اینجا نمایش داده می‌شود.</div>
                 @endif
 
+                @if(($trade->strategy->strategy_type ?? null) === 'structure_trend' && !empty($structureDebug['ema_cross_debug']))
+                    <hr>
+                    <h4>گزارش عبور قیمت از EMA</h4>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>زمان</th>
+                                    <th>جهت</th>
+                                    <th>Close</th>
+                                    <th>EMA</th>
+                                    <th>Close قبلی</th>
+                                    <th>EMA قبلی</th>
+                                    <th>رنگ کندل</th>
+                                    <th>سمت قبلی</th>
+                                    <th>شروع گنبد</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($structureDebug['ema_cross_debug'] as $index => $cross)
+                                    <tr>
+                                        <td>{{ $index + 1 }}</td>
+                                        <td>{{ $cross['time_jalali'] ?? $cross['time'] ?? '—' }}</td>
+                                        <td>
+                                            @if(($cross['direction'] ?? null) === 'long')
+                                                <span class="label label-success">عبور رو به بالا</span>
+                                            @else
+                                                <span class="label label-danger">عبور رو به پایین</span>
+                                            @endif
+                                        </td>
+                                        <td>{{ isset($cross['close']) ? number_format($cross['close'], 2) : '—' }}</td>
+                                        <td>{{ isset($cross['ema']) ? number_format($cross['ema'], 2) : '—' }}</td>
+                                        <td>{{ isset($cross['previous_close']) ? number_format($cross['previous_close'], 2) : '—' }}</td>
+                                        <td>{{ isset($cross['previous_ema']) ? number_format($cross['previous_ema'], 2) : '—' }}</td>
+                                        <td>{{ !empty($cross['candle_color_ok']) ? '✓' : '✗' }}</td>
+                                        <td>{{ !empty($cross['previous_side_ok']) ? '✓' : '✗' }}</td>
+                                        <td>
+                                            @if(!empty($cross['dome_start_condition']))
+                                                <span class="label label-success">بله</span>
+                                            @else
+                                                <span class="label label-danger">خیر</span>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @elseif(($trade->strategy->strategy_type ?? null) === 'structure_trend' && $trade->status === 'completed')
+                    <hr>
+                    <div class="alert alert-warning">در این بازه هیچ عبور واقعی Close از EMA ثبت نشد.</div>
+                @endif
+
                 @if(($trade->strategy->strategy_type ?? null) === 'structure_trend' && !empty($structureDebug['domes']))
                     <hr>
                     <h4>گنبدهای شناسایی‌شده</h4>
