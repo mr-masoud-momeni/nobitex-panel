@@ -106,18 +106,20 @@ class NobitexMarket
         $resolution = self::RESOLUTIONS[$timeframe];
         $from = $this->warmupStart($start, $timeframe, $warmupCandles)->timestamp;
         $to = $end->timestamp;
-        $page = 1;
+        $cursorTo = $to;
         $stored = 0;
 
-        while (true) {
+        // Nobitex UDF history uses from/to timestamps for range selection.
+        // Move the upper bound backwards after each page instead of repeating
+        // the same request with a non-standard page parameter.
+        while ($cursorTo >= $from) {
             $response = Http::timeout(30)
                 ->acceptJson()
                 ->get(self::HISTORY_URL, [
                     'symbol' => strtoupper($marketSymbol->symbol),
                     'resolution' => $resolution,
-                    'to' => $to,
-                    'countback' => 500,
-                    'page' => $page,
+                    'from' => $from,
+                    'to' => $cursorTo,
                 ]);
 
             if (!$response->successful()) {
@@ -128,9 +130,23 @@ class NobitexMarket
 
             $payload = $response->json();
 
-            if (($payload['s'] ?? null) !== 'ok') {
+            if (!is_array($payload)) {
+                throw new RuntimeException('Nobitex historical data API returned an invalid response.');
+            }
+
+            $status = $payload['s'] ?? null;
+
+            // UDF's no_data status is a normal end-of-history response, not an API error.
+            // Keep any candles already stored and let the backtest query the local database.
+            if ($status === 'no_data') {
+                break;
+            }
+
+            if ($status !== 'ok') {
+                $reason = $payload['errmsg'] ?? $payload['reason'] ?? 'unknown error';
                 throw new RuntimeException(
-                    'Nobitex historical data request failed: '.($payload['errmsg'] ?? 'unknown error').'.'
+                    'Nobitex historical data request failed: '.$reason
+                    .' (status: '.($status ?? 'missing').').'
                 );
             }
 
@@ -146,9 +162,12 @@ class NobitexMarket
                 count($opens),
                 count($highs),
                 count($lows),
-                count($closes),
-                count($volumes)
+                count($closes)
             );
+
+            if ($count === 0) {
+                break;
+            }
 
             $oldestTimestamp = null;
             $rows = [];
@@ -192,7 +211,12 @@ class NobitexMarket
                 break;
             }
 
-            $page++;
+            // Prevent a repeated response from creating an infinite loop.
+            if ($oldestTimestamp >= $cursorTo) {
+                break;
+            }
+
+            $cursorTo = $oldestTimestamp - 1;
         }
 
         return $stored;
