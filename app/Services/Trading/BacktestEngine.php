@@ -6,6 +6,7 @@ use App\Models\Strategy;
 use App\Models\StrategyRule;
 use App\Models\Trade;
 use Carbon\Carbon;
+use App\Services\Trading\Indicators\Adx;
 use App\Services\Trading\Indicators\Ema;
 use App\Services\Trading\Indicators\Macd;
 use App\Services\Trading\Indicators\Rsi;
@@ -72,6 +73,13 @@ class BacktestEngine
             $values = ['price' => $close, 'high' => $high, 'low' => $low, 'volume' => $volume];
 
             foreach ($indicators as $key => $indicator) {
+                if ($indicator instanceof Adx) {
+                    $adxValues = $indicator->updateCandle($high, $low, $close);
+                    $component = explode(':', $key, 2)[0];
+                    $values[$key] = $adxValues[$component] ?? null;
+                    continue;
+                }
+
                 $values[$key] = $indicator instanceof Macd
                     ? $indicator->update($close)['macd']
                     : $indicator->update($close);
@@ -259,6 +267,11 @@ class BacktestEngine
             case 'rsi':
                 $indicators[$key] = new Rsi((int) ($parameters['period'] ?? 14));
                 break;
+            case 'adx':
+            case 'plus_di':
+            case 'minus_di':
+                $indicators[$key] = new Adx((int) ($parameters['period'] ?? 14));
+                break;
             case 'macd':
                 $indicators[$key] = new Macd(
                     (int) ($parameters['fast'] ?? 12),
@@ -282,7 +295,7 @@ class BacktestEngine
             );
         }
 
-        if (in_array($name, ['ema', 'sma', 'rsi'], true)) {
+        if (in_array($name, ['ema', 'sma', 'rsi', 'adx', 'plus_di', 'minus_di'], true)) {
             return $name.':'.(int) ($parameters['period'] ?? 14);
         }
 
