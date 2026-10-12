@@ -1,6 +1,6 @@
 <?php
 
-namespace App\\Services\\Trading\\Indicators;
+namespace App\Services\Trading\Indicators;
 
 use InvalidArgumentException;
 
