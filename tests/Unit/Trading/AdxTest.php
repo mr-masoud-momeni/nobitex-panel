@@ -1,9 +1,9 @@
 <?php
 
-namespace Tests\\Unit\\Trading;
+namespace Tests\Unit\Trading;
 
-use App\\Services\\Trading\\Indicators\\Adx;
-use PHPUnit\\Framework\\TestCase;
+use App\Services\Trading\Indicators\Adx;
+use PHPUnit\Framework\TestCase;
 
 class AdxTest extends TestCase
 {
