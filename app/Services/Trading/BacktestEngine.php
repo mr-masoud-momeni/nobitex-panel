@@ -60,6 +60,12 @@ class BacktestEngine
         $lastPrice = null;
         $entryTimestamp = null;
         $entryReason = null;
+        $config = is_array($strategy->config) ? $strategy->config : [];
+        $initialTrendCheckEnabled = $direction === 'long'
+            && (bool) ($config['initial_trend_check_enabled'] ?? false);
+        $initialTrendCheckCandles = max(1, min(20, (int) ($config['initial_trend_check_candles'] ?? 3)));
+        $initialTrendBarsElapsed = 0;
+        $initialTrendConfirmed = false;
         $startTimestamp = $trade->start_date instanceof \DateTimeInterface
             ? $trade->start_date->getTimestamp()
             : Carbon::parse($trade->start_date)->timestamp;
@@ -101,6 +107,25 @@ class BacktestEngine
                     $exitReason = 'exit_rule';
                 }
 
+                // Validate trend formation only during the initial bars after a long entry.
+                // Once confirmed, the regular exit rules manage the position for the rest of the trade.
+                if (
+                    $exitPrice === null
+                    && $initialTrendCheckEnabled
+                    && $positionDirection === 'long'
+                    && !$initialTrendConfirmed
+                ) {
+                    $previousClose = $previousValues['price'] ?? null;
+                    $initialTrendBarsElapsed++;
+
+                    if ($close > $open && $previousClose !== null && $close > (float) $previousClose) {
+                        $initialTrendConfirmed = true;
+                    } elseif ($initialTrendBarsElapsed >= $initialTrendCheckCandles) {
+                        $exitPrice = $close;
+                        $exitReason = 'initial_trend_not_confirmed';
+                    }
+                }
+
                 if ($exitPrice !== null) {
                     [$cash, $profit] = $this->closePosition(
                         $cash, $quantity, $entryPrice, $exitPrice,
@@ -129,6 +154,8 @@ class BacktestEngine
                     $entryFee = 0.0;
                     $entryTimestamp = null;
                     $entryReason = null;
+                    $initialTrendBarsElapsed = 0;
+                    $initialTrendConfirmed = false;
                 }
             }
 
@@ -174,6 +201,8 @@ class BacktestEngine
                     $entryPrice = $close;
                     $entryTimestamp = (int) $candle->timestamp;
                     $entryReason = 'entry_rule';
+                    $initialTrendBarsElapsed = 0;
+                    $initialTrendConfirmed = false;
                     break;
                 }
             }
