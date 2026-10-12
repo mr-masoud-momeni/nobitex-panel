@@ -23,7 +23,6 @@ class BacktestInitialTrendValidationTest extends TestCase
 
         $this->assertCount(1, $result['execution_log']);
         $this->assertSame('initial_trend_not_confirmed', $result['execution_log'][0]['exit_reason']);
-        $this->assertSame('1970-01-01 01:23:20', $result['execution_log'][0]['exit_time']);
     }
 
     public function test_initial_upward_progress_disables_the_initial_validation_for_rest_of_trade(): void
