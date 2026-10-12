@@ -71,6 +71,7 @@ class BacktestEngine
             : Carbon::parse($trade->start_date)->timestamp;
 
         foreach ($candles as $candle) {
+            $open = (float) $candle->open;
             $close = (float) $candle->close;
             $high = (float) $candle->high;
             $low = (float) $candle->low;
