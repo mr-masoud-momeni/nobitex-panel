@@ -43,6 +43,24 @@ document.addEventListener('DOMContentLoaded', function () {
             compareWith: ['rsi'],
             operators: ['>', '<', '>=', '<=', '=', 'slope_>', 'slope_<']
         },
+        adx: {
+            label: 'ADX',
+            parameters: ['period'],
+            compareWith: ['adx', 'plus_di', 'minus_di'],
+            operators: ['>', '<', '>=', '<=', '=', 'crosses_above', 'crosses_below', 'slope_>', 'slope_<']
+        },
+        plus_di: {
+            label: '+DI',
+            parameters: ['period'],
+            compareWith: ['adx', 'plus_di', 'minus_di'],
+            operators: ['>', '<', '>=', '<=', '=', 'crosses_above', 'crosses_below', 'slope_>', 'slope_<']
+        },
+        minus_di: {
+            label: '-DI',
+            parameters: ['period'],
+            compareWith: ['adx', 'plus_di', 'minus_di'],
+            operators: ['>', '<', '>=', '<=', '=', 'crosses_above', 'crosses_below', 'slope_>', 'slope_<']
+        },
         macd: {
             label: 'MACD',
             parameters: ['fast', 'slow', 'signal'],
