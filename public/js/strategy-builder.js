@@ -183,10 +183,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
         typeSelect.innerHTML =
             '<option value="number">عدد</option>' +
-            (canCompareWithIndicator ? '<option value="indicator">اندیکاتور</option>' : '');
+            (canCompareWithIndicator
+                ? '<option value="indicator">اندیکاتور دیگر</option>' +
+                  '<option value="history">مقدار همین اندیکاتور در کندل‌های قبل</option>'
+                : '');
 
-        if (currentType === 'indicator' && canCompareWithIndicator) {
-            typeSelect.value = 'indicator';
+        if ((currentType === 'indicator' || currentType === 'history') && canCompareWithIndicator) {
+            typeSelect.value = currentType;
         } else {
             typeSelect.value = 'number';
         }
@@ -205,6 +208,19 @@ document.addEventListener('DOMContentLoaded', function () {
                 '<input type="number" step="any" ' +
                 'name="rules[' + index + '][value]" ' +
                 'class="form-control" placeholder="مثلاً 70">';
+
+            return;
+        }
+
+        if (valueType === 'history') {
+            container.innerHTML =
+                '<div class="strategy-comparison-history">' +
+                    '<label>چند کندل قبل؟</label>' +
+                    '<input type="number" min="1" max="500" step="1" ' +
+                    'name="rules[' + index + '][value][lookback]" ' +
+                    'class="form-control" value="1">' +
+                    '<small class="text-muted">۱ یعنی کندل قبلی؛ ۳ یعنی سه کندل قبل</small>' +
+                '</div>';
 
             return;
         }
@@ -397,6 +413,11 @@ document.addEventListener('DOMContentLoaded', function () {
                         row.querySelector('.rule-value-parameters'),
                         rule.value.parameters || {}
                     );
+                }
+            } else if (rule.value_type === 'history' && rule.value && typeof rule.value === 'object') {
+                var lookbackInput = row.querySelector('.rule-value input[name*="[lookback]"]');
+                if (lookbackInput && rule.value.lookback !== undefined) {
+                    lookbackInput.value = rule.value.lookback;
                 }
             } else if (rule.value !== null && rule.value !== undefined) {
                 var valueInput = row.querySelector('.rule-value input');

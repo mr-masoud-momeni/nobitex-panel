@@ -75,8 +75,9 @@ class StrategyController extends Controller
             'rules.*.indicator' => ['required', 'string', 'max:50'],
             'rules.*.parameters' => ['nullable', 'array'],
             'rules.*.operator' => ['required', 'string', 'max:30'],
-            'rules.*.value_type' => ['required', 'in:number,indicator'],
+            'rules.*.value_type' => ['required', 'in:number,indicator,history'],
             'rules.*.value' => ['nullable'],
+            'rules.*.value.lookback' => ['nullable', 'integer', 'min:1', 'max:500'],
             'rules.*.logical_operator' => ['nullable', 'in:AND,OR'],
             'rules.*.sort_order' => ['nullable', 'integer', 'min:0'],
         ]);
@@ -144,8 +145,9 @@ class StrategyController extends Controller
             'rules.*.indicator' => ['required', 'string', 'max:50'],
             'rules.*.parameters' => ['nullable', 'array'],
             'rules.*.operator' => ['required', 'string', 'max:30'],
-            'rules.*.value_type' => ['required', 'in:number,indicator'],
+            'rules.*.value_type' => ['required', 'in:number,indicator,history'],
             'rules.*.value' => ['nullable'],
+            'rules.*.value.lookback' => ['nullable', 'integer', 'min:1', 'max:500'],
             'rules.*.logical_operator' => ['nullable', 'in:AND,OR'],
             'rules.*.sort_order' => ['nullable', 'integer', 'min:0'],
         ]);

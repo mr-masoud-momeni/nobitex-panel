@@ -345,6 +345,21 @@ class BacktestEngine
         if ($rule->value_type === 'number') {
             $target = is_numeric($rule->value) ? (float) $rule->value : null;
             $previousTarget = $target;
+        } elseif ($rule->value_type === 'history' && is_array($rule->value)) {
+            $lookback = max(1, min(500, (int) ($rule->value['lookback'] ?? 1)));
+            $history = $valueHistory[$sourceKey] ?? [];
+            $historyCount = count($history);
+            $targetIndex = $historyCount - $lookback;
+
+            if ($targetIndex < 0 || !isset($history[$targetIndex])) {
+                return false;
+            }
+
+            $target = (float) $history[$targetIndex];
+            $previousTargetIndex = $targetIndex - 1;
+            $previousTarget = $previousTargetIndex >= 0 && isset($history[$previousTargetIndex])
+                ? (float) $history[$previousTargetIndex]
+                : null;
         } elseif ($rule->value_type === 'indicator' && is_array($rule->value)) {
             $targetIndicator = $rule->value['indicator'] ?? null;
             $targetParameters = $rule->value['parameters'] ?? [];
