@@ -72,6 +72,31 @@
 
                     <div class="panel panel-default">
                         <div class="panel-heading">
+                            ارزیابی اولیه روند
+                        </div>
+                        <div class="panel-body">
+                            <p class="text-muted">
+                                این قانون فقط در ابتدای معامله بررسی می‌شود. اگر در تعداد کندل تعیین‌شده، کندل سبزی با بسته‌شدن بالاتر از بسته‌شدن کندل قبلی شکل نگیرد، معامله بسته می‌شود.
+                                پس از تأیید اولیه، این قانون دیگر در ادامه معامله اجرا نمی‌شود.
+                            </p>
+                            <div class="checkbox">
+                                <label>
+                                    <input type="checkbox" name="config[initial_trend_check_enabled]" value="1"
+                                        {{ old('config.initial_trend_check_enabled', $strategy->config['initial_trend_check_enabled'] ?? false) ? 'checked' : '' }}>
+                                    فعال‌سازی خروج در صورت شکل‌نگرفتن روند در ابتدای معامله (فقط Long)
+                                </label>
+                            </div>
+                            <div class="form-group" style="max-width: 260px;">
+                                <label>مهلت تأیید روند (تعداد کندل)</label>
+                                <input type="number" name="config[initial_trend_check_candles]" class="form-control"
+                                    min="1" max="20" step="1"
+                                    value="{{ old('config.initial_trend_check_candles', $strategy->config['initial_trend_check_candles'] ?? 3) }}">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel panel-default">
+                        <div class="panel-heading">
                             مدیریت معامله
                         </div>
                         <div class="panel-body">
