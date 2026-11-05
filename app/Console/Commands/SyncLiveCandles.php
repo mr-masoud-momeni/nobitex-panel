@@ -7,6 +7,7 @@ use App\Models\MarketSymbol;
 use App\Services\Trading\Markets\NobitexMarket;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
+use RuntimeException;
 use Throwable;
 
 class SyncLiveCandles extends Command
@@ -31,6 +32,21 @@ class SyncLiveCandles extends Command
             return 1;
         }
 
+        $timeframeMinutes = [
+            '1m' => 1,
+            '5m' => 5,
+            '15m' => 15,
+            '30m' => 30,
+            '1h' => 60,
+            '4h' => 240,
+            '1d' => 1440,
+        ][$timeframe] ?? null;
+
+        if ($timeframeMinutes === null) {
+            $this->error("Unsupported timeframe: {$timeframe}.");
+            return 1;
+        }
+
         $marketSymbol = MarketSymbol::where('symbol', $symbol)
             ->whereHas('market', function ($query) {
                 $query->where('driver', 'nobitex');
@@ -46,12 +62,14 @@ class SyncLiveCandles extends Command
             $end = Carbon::now();
             $start = $end->copy()->subMinutes($lookback);
 
+            $warmupStart = $start->copy()->subMinutes($timeframeMinutes * $warmup);
             $existingCandles = MarketCandle::where('market_symbol_id', $marketSymbol->id)
                 ->where('timeframe', $timeframe)
+                ->whereBetween('timestamp', [$warmupStart->timestamp, $end->timestamp])
                 ->count();
 
-            // Fetch the indicator history only until the local cache has enough candles.
-            $warmupCandles = $existingCandles < $warmup ? $warmup : 0;
+            // Keep enough recent candles for indicator warmup, not merely old rows in the database.
+            $warmupCandles = $existingCandles < ($warmup + 1) ? $warmup : 0;
 
             $count = $nobitexMarket->syncCandles(
                 $marketSymbol,
