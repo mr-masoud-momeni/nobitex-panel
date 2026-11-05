@@ -25,7 +25,11 @@
         </li>
 
         <li class="{{ Request::is('admin/trade*') ? 'active' : '' }}">
-            <a href="{{ route('trade.index') }}">معاملات</a>
+            <a href="{{ route('trade.index') }}">معاملات و بک‌تست</a>
+        </li>
+
+        <li class="{{ Request::is('admin/paper-trading*') ? 'active' : '' }}">
+            <a href="{{ route('paper-trading.index') }}">معاملات آزمایشی زنده</a>
         </li>
 
         <li class="{{ Request::is('admin/indicator-lab*') ? 'active' : '' }}">
