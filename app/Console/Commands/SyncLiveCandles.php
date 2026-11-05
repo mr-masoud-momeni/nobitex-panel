@@ -24,11 +24,10 @@ class SyncLiveCandles extends Command
     {
         $symbol = strtoupper($this->option('symbol'));
         $timeframe = $this->option('timeframe');
-        $lookback = (int) $this->option('lookback');
         $warmup = (int) $this->option('warmup');
 
-        if ($lookback < 1 || $warmup < 0) {
-            $this->error('Lookback must be greater than zero and warmup cannot be negative.');
+        if ($warmup < 0) {
+            $this->error('Warmup cannot be negative.');
             return 1;
         }
 
@@ -89,10 +88,7 @@ class SyncLiveCandles extends Command
             return 1;
         }
 
-        $this->info(
-            "Synchronized {$count} candle row(s) for {$symbol} ({$timeframe})."
-            .($warmupCandles > 0 ? " Initial warmup requested: {$warmupCandles} candles." : '')
-        );
+        $this->info("Synchronized {$count} candle row(s) for {$symbol} ({$timeframe}).");
 
         return 0;
     }
