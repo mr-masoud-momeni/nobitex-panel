@@ -1,22 +1,21 @@
 <?php
 
-namespace App\\Console;
+namespace App\Console;
 
-use Illuminate\\Console\\Scheduling\\Schedule;
-use Illuminate\\Foundation\\Console\\Kernel as ConsoleKernel;
+use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
 class Kernel extends ConsoleKernel
 {
     /**
      * Define the application's command schedule.
      *
-     * @param  \\Illuminate\\Console\\Scheduling\\Schedule  $schedule
+     * @param  \Illuminate\Console\Scheduling\Schedule  $schedule
      * @return void
      */
     protected function schedule(Schedule $schedule)
     {
-        // Fetch recent candles frequently so the current candle is refreshed
-        // and missed intervals can be recovered after a short interruption.
+        // Refresh the recent candle window and recover short interruptions.
         $schedule->command('market:sync-live-candles --symbol=BTCUSDT --timeframe=15m --lookback=45')
             ->everyMinute()
             ->withoutOverlapping();
