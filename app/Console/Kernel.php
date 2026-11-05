@@ -16,7 +16,12 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule)
     {
         // Refresh the recent candle window and recover short interruptions.
-        $schedule->command('market:sync-live-candles --symbol=BTCUSDT --timeframe=15m --lookback=45')
+        $schedule->command('market:sync-live-candles --symbol=BTCUSDT --timeframe=15m --lookback=45 --warmup=200')
+            ->everyMinute()
+            ->withoutOverlapping();
+
+        // Evaluate signals only after their 15-minute candles have closed.
+        $schedule->command('trading:process-paper-signals --symbol=BTCUSDT --timeframe=15m --warmup=200')
             ->everyMinute()
             ->withoutOverlapping();
     }
