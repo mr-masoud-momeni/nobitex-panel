@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\AdminLoginController;
+use App\Http\Controllers\admin\PaperTradingController;
 
 require __DIR__.'/auth.php';
 
@@ -41,6 +42,10 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->group(function () {
 
     Route::get('/indicator-lab', 'App\\Http\\Controllers\\admin\\IndicatorLabController@index')->name('indicator-lab.index');
     Route::post('/indicator-lab/test', 'App\\Http\\Controllers\\admin\\IndicatorLabController@test')->name('indicator-lab.test');
+
+    Route::get('/paper-trading', [PaperTradingController::class, 'index'])->name('paper-trading.index');
+    Route::post('/paper-trading/{account}/settings', [PaperTradingController::class, 'updateSettings'])
+        ->name('paper-trading.settings');
 
     Route::get('/trade', 'App\\Http\\Controllers\\admin\\TradeController@index')->name('trade.index');
     Route::get('/trade/create', 'App\\Http\\Controllers\\admin\\TradeController@create')->name('trade.create');
