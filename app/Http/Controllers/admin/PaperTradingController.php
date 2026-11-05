@@ -63,8 +63,6 @@ class PaperTradingController extends Controller
             $unrealizedPnl = $markNotional - (float) $openTrade->entry_notional
                 - (float) $openTrade->entry_fee - $estimatedExitFee;
             $estimatedEquity += $markNotional - $estimatedExitFee;
-        } elseif ($account) {
-            $estimatedEquity += (float) $account->realized_pnl;
         }
 
         return view('Backend.paper-trading.index', [
