@@ -1,8 +1,8 @@
 <?php
 
-use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use Illuminate\\Database\\Migrations\\Migration;
+use Illuminate\\Database\\Schema\\Blueprint;
+use Illuminate\\Support\\Facades\\Schema;
 
 return new class extends Migration
 {
@@ -38,8 +38,8 @@ return new class extends Migration
             $table->unsignedBigInteger('exit_timestamp')->nullable();
             $table->timestamps();
 
-            $table->index(['paper_trading_account_id', 'status']);
-            $table->index(['paper_trading_account_id', 'entry_timestamp']);
+            $table->index(['paper_trading_account_id', 'status'], 'paper_trade_account_status_idx');
+            $table->index(['paper_trading_account_id', 'entry_timestamp'], 'paper_trade_account_entry_ts_idx');
         });
     }
 
