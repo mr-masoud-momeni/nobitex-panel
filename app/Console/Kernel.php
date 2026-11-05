@@ -24,6 +24,11 @@ class Kernel extends ConsoleKernel
         $schedule->command('trading:process-paper-signals --symbol=BTCUSDT --timeframe=15m --warmup=200')
             ->everyMinute()
             ->withoutOverlapping();
+
+        // Execute persisted signals after the signal engine has finished.
+        $schedule->command('trading:execute-paper-signals --symbol=BTCUSDT --timeframe=15m')
+            ->everyMinute()
+            ->withoutOverlapping();
     }
 
     /**
