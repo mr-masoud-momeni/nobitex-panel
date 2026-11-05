@@ -125,7 +125,7 @@
                     <span>تایم‌فریم: <strong>۱۵ دقیقه</strong></span>
                     <span>آخرین قیمت ثبت‌شده: <strong>{{ $latestPrice !== null ? number_format($latestPrice, 2).' USDT' : '—' }}</strong></span>
                     <span>کارمزد هر سمت: <strong>{{ number_format((float) $account->fee_percent, 3) }}٪</strong></span>
-                    <span>زمان آخرین کندل: <strong>{{ $lastCandleTimestamp ? CarbonCarbon::createFromTimestamp($lastCandleTimestamp)->setTimezone('Asia/Tehran')->format('Y/m/d H:i') : '—' }}</strong></span>
+                    <span>زمان آخرین کندل: <strong>{{ $lastCandleTimestamp ? \Carbon\Carbon::createFromTimestamp($lastCandleTimestamp)->setTimezone('Asia/Tehran')->format('Y/m/d H:i') : '—' }}</strong></span>
                 </div>
             </div>
         </div>
@@ -181,7 +181,7 @@
                         </thead>
                         <tbody>
                             <tr>
-                                <td>{{ CarbonCarbon::createFromTimestamp($openTrade->entry_timestamp)->setTimezone('Asia/Tehran')->format('Y/m/d H:i') }}</td>
+                                <td>{{ \Carbon\Carbon::createFromTimestamp($openTrade->entry_timestamp)->setTimezone('Asia/Tehran')->format('Y/m/d H:i') }}</td>
                                 <td>{{ number_format((float) $openTrade->entry_price, 2) }}</td>
                                 <td>{{ $latestPrice !== null ? number_format($latestPrice, 2) : '—' }}</td>
                                 <td>{{ number_format((float) $openTrade->quantity, 8) }}</td>
@@ -234,8 +234,8 @@
                         <tbody>
                             @foreach($history as $trade)
                                 <tr>
-                                    <td>{{ CarbonCarbon::createFromTimestamp($trade->entry_timestamp)->setTimezone('Asia/Tehran')->format('Y/m/d H:i') }}</td>
-                                    <td>{{ $trade->exit_timestamp ? CarbonCarbon::createFromTimestamp($trade->exit_timestamp)->setTimezone('Asia/Tehran')->format('Y/m/d H:i') : '—' }}</td>
+                                    <td>{{ \Carbon\Carbon::createFromTimestamp($trade->entry_timestamp)->setTimezone('Asia/Tehran')->format('Y/m/d H:i') }}</td>
+                                    <td>{{ $trade->exit_timestamp ? \Carbon\Carbon::createFromTimestamp($trade->exit_timestamp)->setTimezone('Asia/Tehran')->format('Y/m/d H:i') : '—' }}</td>
                                     <td>{{ number_format((float) $trade->entry_price, 2) }}</td>
                                     <td>{{ number_format((float) $trade->exit_price, 2) }}</td>
                                     <td>{{ number_format((float) $trade->quantity, 8) }}</td>
