@@ -1,15 +1,15 @@
 <?php
 
-namespace App\\Http\\Controllers\\admin;
+namespace App\Http\Controllers\admin;
 
-use App\\Http\\Controllers\\Controller;
-use App\\Models\\MarketCandle;
-use App\\Models\\MarketSymbol;
-use App\\Models\\PaperTradingAccount;
-use App\\Models\\PaperTradingState;
-use App\\Services\\Trading\\LiveEmaSignalEngine;
-use Illuminate\\Http\\Request;
-use Illuminate\\Validation\\ValidationException;
+use App\Http\Controllers\Controller;
+use App\Models\MarketCandle;
+use App\Models\MarketSymbol;
+use App\Models\PaperTradingAccount;
+use App\Models\PaperTradingState;
+use App\Services\Trading\LiveEmaSignalEngine;
+use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class PaperTradingController extends Controller
 {
