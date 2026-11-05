@@ -60,23 +60,28 @@ class SyncLiveCandles extends Command
 
         try {
             $end = Carbon::now();
-            $start = $end->copy()->subMinutes($lookback);
 
-            $warmupStart = $start->copy()->subMinutes($timeframeMinutes * $warmup);
-            $existingCandles = MarketCandle::where('market_symbol_id', $marketSymbol->id)
+            // Resume from the newest candle already stored. One-candle overlap
+            // refreshes the most recent bar and makes retries safe.
+            $latestStoredTimestamp = MarketCandle::where('market_symbol_id', $marketSymbol->id)
                 ->where('timeframe', $timeframe)
-                ->whereBetween('timestamp', [$warmupStart->timestamp, $end->timestamp])
-                ->count();
+                ->max('timestamp');
 
-            // Keep enough recent candles for indicator warmup, not merely old rows in the database.
-            $warmupCandles = $existingCandles < ($warmup + 1) ? $warmup : 0;
+            if ($latestStoredTimestamp !== null) {
+                $start = Carbon::createFromTimestamp((int) $latestStoredTimestamp)
+                    ->subSeconds($timeframeMinutes * 60);
+            } else {
+                // First run: fetch enough history to seed indicators, plus a few
+                // extra bars so the signal engine has a closed candle to initialize on.
+                $start = $end->copy()->subMinutes($timeframeMinutes * ($warmup + 5));
+            }
 
             $count = $nobitexMarket->syncCandles(
                 $marketSymbol,
                 $timeframe,
                 $start,
                 $end,
-                $warmupCandles
+                0
             );
         } catch (Throwable $e) {
             report($e);
