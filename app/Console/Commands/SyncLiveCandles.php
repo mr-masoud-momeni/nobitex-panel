@@ -1,11 +1,11 @@
 <?php
 
-namespace App\\Console\\Commands;
+namespace App\Console\Commands;
 
-use App\\Models\\MarketSymbol;
-use App\\Services\\Trading\\Markets\\NobitexMarket;
-use Carbon\\Carbon;
-use Illuminate\\Console\\Command;
+use App\Models\MarketSymbol;
+use App\Services\Trading\Markets\NobitexMarket;
+use Carbon\Carbon;
+use Illuminate\Console\Command;
 use Throwable;
 
 class SyncLiveCandles extends Command
