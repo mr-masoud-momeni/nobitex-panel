@@ -241,6 +241,7 @@ class BacktestEngine
             $this->appendHistory($valueHistory, $values);
             $previousValues = $values;
             $lastPrice = $close;
+            $lastProcessedTimestamp = $candleTimestamp;
         }
 
         if ($finalize && $quantity > 0 && $lastPrice !== null && $positionDirection !== null) {
