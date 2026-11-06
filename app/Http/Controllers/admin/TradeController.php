@@ -323,7 +323,13 @@ class TradeController extends Controller
     )
     {
         if ($trade->type !== 'backtest') {
-            return back()->with('error', 'ادامه خودکار فعلاً فقط برای معاملات Backtest مبتنی بر Rule Builder فعال است.');
+            $trade->update([
+                'status' => 'running',
+                'started_at' => $trade->started_at ?: now(),
+                'stopped_at' => null,
+            ]);
+
+            return back()->with('success', 'اجرای معامله شروع شد.');
         }
 
         if ($trade->status === 'completed') {
