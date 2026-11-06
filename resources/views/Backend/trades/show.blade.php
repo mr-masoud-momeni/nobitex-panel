@@ -48,6 +48,25 @@
                     <div class="col-md-2"><strong>زیان‌ده:</strong> {{ $trade->losing_trades ?? '—' }}</div>
                 </div>
 
+                @if(is_array($trade->engine_state) && (float) ($trade->engine_state['quantity'] ?? 0) > 0)
+                    <div class="alert alert-info">
+                        <strong>پوزیشن باز است و برای ادامه ذخیره شده:</strong>
+                        {{ ($trade->engine_state['position_direction'] ?? null) === 'short' ? 'Short' : 'Long' }}
+                        | مقدار: {{ number_format((float) $trade->engine_state['quantity'], 8) }}
+                        | قیمت ورود: {{ number_format((float) ($trade->engine_state['entry_price'] ?? 0), 2) }}
+                        @if(!empty($trade->engine_state['entry_timestamp']))
+                            | زمان ورود: {{ \Carbon\Carbon::createFromTimestamp((int) $trade->engine_state['entry_timestamp'])->format('Y-m-d H:i') }}
+                        @endif
+                    </div>
+                @endif
+
+                @if(is_array($trade->engine_state) && (int) ($trade->engine_state['warmup_remaining'] ?? 0) > 0)
+                    <div class="alert alert-warning">
+                        سیستم هنوز در مرحله Warm-up است؛
+                        {{ (int) $trade->engine_state['warmup_remaining'] }} کندل تا شروع بررسی شروط ورود باقی مانده است.
+                    </div>
+                @endif
+
                 <hr>
 
                 <h4>گزارش ورود و خروج بک‌تست</h4>
