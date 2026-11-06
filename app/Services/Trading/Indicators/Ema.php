@@ -61,4 +61,23 @@ class Ema implements Indicator
     {
         return $this->value;
     }
+
+    public function exportState(): array
+    {
+        return [
+            'period' => $this->period,
+            'seed_values' => $this->seedValues,
+            'value' => $this->value,
+        ];
+    }
+
+    public function importState(array $state): void
+    {
+        if ((int) ($state['period'] ?? 0) !== $this->period) {
+            throw new InvalidArgumentException('EMA checkpoint period does not match.');
+        }
+
+        $this->seedValues = array_map('floatval', $state['seed_values'] ?? []);
+        $this->value = isset($state['value']) ? (float) $state['value'] : null;
+    }
 }
