@@ -399,7 +399,18 @@ class TradeController extends Controller
                     return ['kind' => 'no_new'];
                 }
 
-                $syncStart = Carbon::createFromTimestamp($nextStartTimestamp, 'UTC');
+                $apiStartTimestamp = $nextStartTimestamp;
+                if ($isFirstRun) {
+                    // Nobitex UDF may return no_data when the requested range starts
+                    // too far in the past. Start with its most recent 480-candle window;
+                    // the remaining warm-up candles will be accumulated in later runs.
+                    $apiWindowStart = $endBoundaryTimestamp - ($intervalSeconds * 479);
+                    $warmupStartTimestamp = $lockedTrade->start_date->timestamp
+                        - ($intervalSeconds * $warmupCandles);
+                    $apiStartTimestamp = max($apiWindowStart, $warmupStartTimestamp);
+                }
+
+                $syncStart = Carbon::createFromTimestamp($apiStartTimestamp, 'UTC');
                 $syncEnd = Carbon::createFromTimestamp($endBoundaryTimestamp, 'UTC');
 
                 $syncedCount = $nobitexMarket->syncCandles(
@@ -407,7 +418,7 @@ class TradeController extends Controller
                     $lockedTrade->timeframe,
                     $syncStart,
                     $syncEnd,
-                    $isFirstRun ? $warmupCandles : 0
+                    0
                 );
 
                 $query = MarketCandle::where('market_symbol_id', $marketSymbol->id)
