@@ -399,12 +399,13 @@ class TradeController extends Controller
                     return ['kind' => 'no_new'];
                 }
 
-                $apiStartTimestamp = $nextStartTimestamp;
+                // Nobitex UDF may return no_data when the requested range starts
+                // too far in the past. Always request within its recent 480-candle window.
+                // Older candles already archived locally remain available to the query below.
+                $apiWindowStart = $endBoundaryTimestamp - ($intervalSeconds * 479);
+                $apiStartTimestamp = max($nextStartTimestamp, $apiWindowStart);
+
                 if ($isFirstRun) {
-                    // Nobitex UDF may return no_data when the requested range starts
-                    // too far in the past. Start with its most recent 480-candle window;
-                    // the remaining warm-up candles will be accumulated in later runs.
-                    $apiWindowStart = $endBoundaryTimestamp - ($intervalSeconds * 479);
                     $warmupStartTimestamp = $lockedTrade->start_date->timestamp
                         - ($intervalSeconds * $warmupCandles);
                     $apiStartTimestamp = max($apiWindowStart, $warmupStartTimestamp);
