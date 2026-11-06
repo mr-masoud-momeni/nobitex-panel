@@ -80,6 +80,31 @@ class Rsi implements Indicator
         return $this->value;
     }
 
+    public function exportState(): array
+    {
+        return [
+            'period' => $this->period,
+            'changes' => $this->changes,
+            'previous_value' => $this->previousValue,
+            'average_gain' => $this->averageGain,
+            'average_loss' => $this->averageLoss,
+            'value' => $this->value,
+        ];
+    }
+
+    public function importState(array $state): void
+    {
+        if ((int) ($state['period'] ?? 0) !== $this->period) {
+            throw new InvalidArgumentException('RSI checkpoint period does not match.');
+        }
+
+        $this->changes = $state['changes'] ?? [];
+        $this->previousValue = isset($state['previous_value']) ? (float) $state['previous_value'] : null;
+        $this->averageGain = isset($state['average_gain']) ? (float) $state['average_gain'] : null;
+        $this->averageLoss = isset($state['average_loss']) ? (float) $state['average_loss'] : null;
+        $this->value = isset($state['value']) ? (float) $state['value'] : null;
+    }
+
     private function calculateRsi(): float
     {
         if ($this->averageLoss == 0.0) {
