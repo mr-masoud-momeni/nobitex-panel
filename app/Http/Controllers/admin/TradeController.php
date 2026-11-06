@@ -429,11 +429,16 @@ class TradeController extends Controller
                     && $latestClosedTimestamp >= $endBoundaryTimestamp
                     && $endBoundaryTimestamp === ((intdiv($lockedTrade->end_date->timestamp, $intervalSeconds) * $intervalSeconds) - $intervalSeconds);
 
+                $engineCheckpoint = $lockedTrade->engine_state;
+                if ($isFirstRun) {
+                    $engineCheckpoint = ['warmup_remaining' => $warmupCandles];
+                }
+
                 $result = $backtestEngine->run(
                     $strategy,
                     $lockedTrade,
                     $candles,
-                    $lockedTrade->engine_state,
+                    $engineCheckpoint,
                     $shouldFinalize
                 );
 
