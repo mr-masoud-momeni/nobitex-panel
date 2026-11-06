@@ -25,6 +25,8 @@ class Trade extends Model
         'winning_trades',
         'losing_trades',
         'backtest_log',
+        'last_processed_timestamp',
+        'engine_state',
         'started_at',
         'stopped_at',
         'completed_at',
@@ -38,6 +40,8 @@ class Trade extends Model
         'stopped_at' => 'datetime',
         'completed_at' => 'datetime',
         'backtest_log' => 'array',
+        'last_processed_timestamp' => 'integer',
+        'engine_state' => 'array',
     ];
 
     public function strategy()
