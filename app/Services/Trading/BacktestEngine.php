@@ -481,7 +481,7 @@ class BacktestEngine
         }
 
         if ($rule->operator === 'slope_>' || $rule->operator === 'slope_<') {
-            $lookback = max(1, (int) (($rule->parameters ?: [])['lookback'] ?? 5));
+            $lookback = max(1, min(500, (int) (($rule->parameters ?: [])['lookback'] ?? 5)));
             $history = $valueHistory[$sourceKey] ?? [];
 
             if (count($history) < $lookback) {
