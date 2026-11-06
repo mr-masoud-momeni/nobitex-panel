@@ -114,8 +114,8 @@
                                     <input type="hidden" name="start_date" id="trade-start-date" value="{{ old('start_date', $default_start_date_unix) }}">
                                 </div>
                                 <div class="col-md-4 form-group">
-                                    <label>تا تاریخ</label>
-                                    <input type="text" id="trade-end-date-display" class="form-control" autocomplete="off" value="{{ old('end_date_display', $default_end_date_jalali) }}">
+                                    <label>تا تاریخ (اختیاری؛ خالی یعنی بک‌تست ادامه‌دار)</label>
+                                    <input type="text" id="trade-end-date-display" class="form-control" autocomplete="off" value="{{ old('end_date_display', $default_end_date_jalali) }}" placeholder="بدون تاریخ پایان">
                                     <input type="hidden" name="end_date" id="trade-end-date" value="{{ old('end_date', $default_end_date_unix) }}">
                                 </div>
                                 <div class="col-md-4 form-group">
@@ -147,13 +147,13 @@
 
 <script>
 (function () {
-    function initJalaliDatepicker(displaySelector, hiddenSelector) {
+    function initJalaliDatepicker(displaySelector, hiddenSelector, initialValue) {
         var display = $(displaySelector);
         var hidden = $(hiddenSelector);
 
         display.pDatepicker({
             format: 'YYYY/MM/DD HH:mm',
-            initialValue: true,
+            initialValue: initialValue,
             initialValueType: 'persian',
             persianDigit: false,
             autoClose: false,
@@ -167,20 +167,20 @@
         });
     }
 
-    initJalaliDatepicker('#trade-start-date-display', '#trade-start-date');
-    initJalaliDatepicker('#trade-end-date-display', '#trade-end-date');
+    initJalaliDatepicker('#trade-start-date-display', '#trade-start-date', true);
+    initJalaliDatepicker('#trade-end-date-display', '#trade-end-date', false);
 
     document.querySelector('form').addEventListener('submit', function (event) {
         var start = document.getElementById('trade-start-date').value;
         var end = document.getElementById('trade-end-date').value;
 
-        if (!start || !end || start === '0' || end === '0') {
-            alert('لطفاً تاریخ شروع و پایان را از تقویم انتخاب کنید.');
+        if (!start || start === '0') {
+            alert('لطفاً تاریخ شروع را از تقویم انتخاب کنید.');
             event.preventDefault();
             return;
         }
 
-        if (parseInt(end, 10) < parseInt(start, 10)) {
+        if (end && parseInt(end, 10) < parseInt(start, 10)) {
             alert('تاریخ پایان باید بعد از تاریخ شروع باشد.');
             event.preventDefault();
         }
