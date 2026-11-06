@@ -122,7 +122,7 @@
                                     <label>Warm-up (تعداد کندل)</label>
                                     <input type="number" name="warmup_candles" class="form-control" min="1" max="100000" step="1"
                                            value="{{ old('warmup_candles', $trade->warmup_candles ?? 1000) }}" required>
-                                    <small class="help-block">فقط برای آماده‌سازی اندیکاتورهاست و در بازه معامله محسوب نمی‌شود.</small>
+                                    <small class="help-block">این تعداد برای آماده‌سازی اندیکاتورهاست و معامله‌ای در آن انجام نمی‌شود. اگر تاریخچه کافی موجود نباشد، سیستم کندل‌های جدید را جمع می‌کند تا Warm-up کامل شود.</small>
                                 </div>
                             </div>                            </div>
                         </div>
