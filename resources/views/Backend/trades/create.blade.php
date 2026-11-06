@@ -27,7 +27,7 @@
 
                     <div class="row">
                         <div class="col-md-6 form-group">
-                            <label>استراتژی</label>
+                            <label>استراتژی Rule Builder</label>
                             <select name="strategy_id" class="form-control" required>
                                 <option value="">انتخاب استراتژی</option>
                                 @foreach($strategies as $strategy)
