@@ -44,13 +44,16 @@ class TradeController extends Controller
 
     private function formView($trade)
     {
-        $strategies = Strategy::where(function ($query) use ($trade) {
-            $query->where('is_active', true);
+        $strategies = Strategy::where('strategy_type', 'generic')
+            ->where(function ($query) use ($trade) {
+                $query->where('is_active', true);
 
-            if ($trade) {
-                $query->orWhere('id', $trade->strategy_id);
-            }
-        })->orderBy('name')->get();
+                if ($trade && $trade->strategy && $trade->strategy->strategy_type === 'generic') {
+                    $query->orWhere('id', $trade->strategy_id);
+                }
+            })
+            ->orderBy('name')
+            ->get();
 
         $markets = Market::where(function ($query) use ($trade) {
             $query->where('is_active', true);
@@ -140,6 +143,8 @@ class TradeController extends Controller
                 'stopped_at',
                 'completed_at',
                 'backtest_log',
+                'last_processed_timestamp',
+                'engine_state',
             ]);
 
             $copy->status = 'draft';
@@ -152,6 +157,8 @@ class TradeController extends Controller
             $copy->stopped_at = null;
             $copy->completed_at = null;
             $copy->backtest_log = null;
+            $copy->last_processed_timestamp = null;
+            $copy->engine_state = null;
             $copy->save();
 
             return $copy;
@@ -165,7 +172,7 @@ class TradeController extends Controller
     private function validatedData(Request $request, ?Trade $trade = null)
     {
         $data = $request->validate([
-            'strategy_id' => ['required', 'exists:strategies,id'],
+            'strategy_id' => ['required', Rule::exists('strategies', 'id')->where('strategy_type', 'generic')],
             'market_id' => ['required', 'exists:markets,id'],
             'market_symbol_id' => [
                 'required',
@@ -312,47 +319,47 @@ class TradeController extends Controller
         BacktestEngine $backtestEngine
     )
     {
-        if ($trade->status === 'running') {
-            return back();
+        if ($trade->type !== 'backtest') {
+            return back()->with('error', 'ادامه خودکار فعلاً فقط برای معاملات Backtest مبتنی بر Rule Builder فعال است.');
         }
 
-        if (in_array($trade->status, ['completed', 'stopped'])) {
-            return back()->with('error', 'این معامله قبلاً اجرا شده است. برای اجرای جدید، معامله جدید ایجاد کنید.');
+        if ($trade->status === 'completed') {
+            return back()->with('error', 'این بک‌تست به پایان رسیده است. برای اجرای جدید، معامله را داپلیکیت کنید.');
         }
 
-        if ($trade->type === 'backtest') {
-            if (!$trade->start_date || !$trade->end_date) {
-                return back()->with('error', 'برای بک‌تست باید تاریخ شروع و پایان مشخص شده باشد.');
-            }
+        try {
+            $outcome = DB::transaction(function () use (
+                $trade,
+                $nobitexMarket,
+                $indicatorWarmup,
+                $backtestEngine
+            ) {
+                $lockedTrade = Trade::whereKey($trade->id)->lockForUpdate()->firstOrFail();
 
-            $trade->update([
-                'status' => 'running',
-                'started_at' => $trade->started_at ?: now(),
-                'stopped_at' => null,
-            ]);
+                if ($lockedTrade->status === 'completed') {
+                    return ['kind' => 'completed'];
+                }
 
-            try {
-                $marketSymbol = MarketSymbol::where('id', $trade->market_symbol_id)
-                    ->where('market_id', $trade->market_id)
-                    ->firstOrFail();
+                if (!$lockedTrade->start_date) {
+                    throw new \RuntimeException('برای شروع بک‌تست باید تاریخ شروع مشخص شده باشد.');
+                }
 
-                if (($trade->market->driver ?? null) !== 'nobitex') {
+                $lockedTrade->loadMissing(['market', 'strategy.rules']);
+
+                if (($lockedTrade->strategy->strategy_type ?? null) !== 'generic') {
+                    throw new \RuntimeException('این بخش فقط برای استراتژی‌های Rule Builder فعال است.');
+                }
+
+                if (($lockedTrade->market->driver ?? null) !== 'nobitex') {
                     throw new \RuntimeException('در حال حاضر فقط منبع Nobitex برای دریافت داده تاریخی پیاده‌سازی شده است.');
                 }
 
-                $strategy = $trade->strategy()->with('rules')->firstOrFail();
-                $warmupCandles = $indicatorWarmup->candlesFor($strategy, $trade->warmup_candles);
+                $marketSymbol = MarketSymbol::where('id', $lockedTrade->market_symbol_id)
+                    ->where('market_id', $lockedTrade->market_id)
+                    ->firstOrFail();
 
-                $start = Carbon::parse($trade->start_date);
-                $end = Carbon::parse($trade->end_date);
-
-                $count = $nobitexMarket->syncCandles(
-                    $marketSymbol,
-                    $trade->timeframe,
-                    $start,
-                    $end,
-                    $warmupCandles
-                );
+                $strategy = $lockedTrade->strategy;
+                $warmupCandles = $indicatorWarmup->candlesFor($strategy, $lockedTrade->warmup_candles);
 
                 $timeframeMinutes = [
                     '1m' => 1,
@@ -362,79 +369,126 @@ class TradeController extends Controller
                     '1h' => 60,
                     '4h' => 240,
                     '1d' => 1440,
-                ][$trade->timeframe] ?? null;
+                ][$lockedTrade->timeframe] ?? null;
 
                 if ($timeframeMinutes === null) {
                     throw new \RuntimeException('تایم‌فریم انتخاب‌شده پشتیبانی نمی‌شود.');
                 }
 
-                $candleStart = $start->copy()->subMinutes($timeframeMinutes * $warmupCandles);
+                $intervalSeconds = $timeframeMinutes * 60;
+                $nowTimestamp = Carbon::now('UTC')->timestamp;
+                $latestClosedTimestamp = (intdiv($nowTimestamp, $intervalSeconds) * $intervalSeconds) - $intervalSeconds;
 
-                $candles = MarketCandle::where('market_symbol_id', $marketSymbol->id)
-                    ->where('timeframe', $trade->timeframe)
-                    ->whereBetween('timestamp', [$candleStart->timestamp, $end->timestamp])
-                    ->orderBy('timestamp')
-                    ->get();
-
-                if ($candles->isEmpty()) {
-                    throw new \RuntimeException('هیچ کندلی برای اجرای بک‌تست پیدا نشد.');
+                $endBoundaryTimestamp = $latestClosedTimestamp;
+                if ($lockedTrade->end_date) {
+                    $requestedEnd = $lockedTrade->end_date->timestamp;
+                    $requestedLastCandle = (intdiv($requestedEnd, $intervalSeconds) * $intervalSeconds) - $intervalSeconds;
+                    $endBoundaryTimestamp = min($latestClosedTimestamp, $requestedLastCandle);
                 }
 
-                $result = $backtestEngine->run($strategy, $trade, $candles);
+                $lastProcessed = $lockedTrade->last_processed_timestamp;
+                $isFirstRun = $lastProcessed === null;
+                $nextStartTimestamp = $isFirstRun
+                    ? $lockedTrade->start_date->timestamp
+                    : ((int) $lastProcessed + $intervalSeconds);
 
-                $trade->update([
-                    'status' => 'completed',
+                if ($endBoundaryTimestamp < $nextStartTimestamp) {
+                    return ['kind' => 'no_new'];
+                }
+
+                $syncStart = Carbon::createFromTimestamp($nextStartTimestamp, 'UTC');
+                $syncEnd = Carbon::createFromTimestamp($endBoundaryTimestamp, 'UTC');
+
+                $syncedCount = $nobitexMarket->syncCandles(
+                    $marketSymbol,
+                    $lockedTrade->timeframe,
+                    $syncStart,
+                    $syncEnd,
+                    $isFirstRun ? $warmupCandles : 0
+                );
+
+                $query = MarketCandle::where('market_symbol_id', $marketSymbol->id)
+                    ->where('timeframe', $lockedTrade->timeframe)
+                    ->where('timestamp', '<=', $endBoundaryTimestamp);
+
+                if ($isFirstRun) {
+                    $candleStartTimestamp = $lockedTrade->start_date->timestamp
+                        - ($intervalSeconds * $warmupCandles);
+                    $query->where('timestamp', '>=', $candleStartTimestamp);
+                } else {
+                    $query->where('timestamp', '>', (int) $lastProcessed);
+                }
+
+                $candles = $query->orderBy('timestamp')->get();
+
+                if ($candles->isEmpty()) {
+                    return ['kind' => 'no_new', 'synced' => $syncedCount];
+                }
+
+                $shouldFinalize = $lockedTrade->end_date !== null
+                    && $latestClosedTimestamp >= $endBoundaryTimestamp
+                    && $endBoundaryTimestamp === ((intdiv($lockedTrade->end_date->timestamp, $intervalSeconds) * $intervalSeconds) - $intervalSeconds);
+
+                $result = $backtestEngine->run(
+                    $strategy,
+                    $lockedTrade,
+                    $candles,
+                    $lockedTrade->engine_state,
+                    $shouldFinalize
+                );
+
+                $storedLog = is_array($lockedTrade->backtest_log) ? $lockedTrade->backtest_log : [];
+                $previousExecutions = is_array($storedLog['executions'] ?? null)
+                    ? $storedLog['executions']
+                    : [];
+                $storedLog['executions'] = array_merge($previousExecutions, $result['execution_log']);
+
+                $lockedTrade->update([
+                    'status' => $shouldFinalize ? 'completed' : 'running',
+                    'started_at' => $lockedTrade->started_at ?: now(),
+                    'stopped_at' => null,
+                    'completed_at' => $shouldFinalize ? now() : null,
                     'result_amount' => $result['result_amount'],
                     'result_percent' => $result['result_percent'],
                     'total_trades' => $result['total_trades'],
                     'winning_trades' => $result['winning_trades'],
                     'losing_trades' => $result['losing_trades'],
-                    'backtest_log' => [
-                        'executions' => $result['execution_log'],
-                        'structure_debug' => array_merge(
-                            $result['structure_debug'] ?? [],
-                            ['ema_cross_debug' => $result['ema_cross_debug'] ?? []]
-                        ),
-                    ],
-                    'completed_at' => now(),
-                    'stopped_at' => null,
+                    'backtest_log' => $storedLog,
+                    'engine_state' => $result['engine_state'],
+                    'last_processed_timestamp' => $result['last_processed_timestamp'],
                 ]);
 
-                $message = "بک‌تست با موفقیت اجرا شد. {$count} کندل همگام‌سازی شد؛ "
-                    ."نتیجه: ".number_format($result['result_percent'], 2)."٪ | "
-                    ."تعداد معاملات: ".$result['total_trades'];
+                return [
+                    'kind' => 'processed',
+                    'synced' => $syncedCount,
+                    'candles' => $candles->count(),
+                    'result' => $result,
+                    'finalized' => $shouldFinalize,
+                ];
+            }, 3);
 
-                if (($strategy->strategy_type ?? null) === 'structure_trend' && isset($result['structure_debug'])) {
-                    $debug = $result['structure_debug'];
-                    $message .= " | ساختار: "
-                        ."شکست EMA {$debug['ema_crosses']} → "
-                        ."گنبد {$debug['dome_detected']} → "
-                        ."شروع پولبک {$debug['pullback_started']} → "
-                        ."پولبک کامل {$debug['pullback_completed']} → "
-                        ."تأیید {$debug['confirmation_detected']} → "
-                        ."رد تأیید {$debug['confirmation_rejected']} → "
-                        ."فیلتر ورود {$debug['entry_filters_passed']} → "
-                        ."ورود {$debug['entries']}";
-                }
-
-                return back()->with('success', $message);
-            } catch (Throwable $e) {
-                $trade->update([
-                    'status' => 'draft',
-                    'started_at' => null,
-                ]);
-
-                return back()->with('error', 'دریافت داده‌های تاریخی ناموفق بود: '.$e->getMessage());
+            if ($outcome['kind'] === 'completed') {
+                return back()->with('error', 'این بک‌تست به پایان رسیده است.');
             }
+
+            if ($outcome['kind'] === 'no_new') {
+                return back()->with('info', 'هنوز کندل بسته‌شده جدیدی برای پردازش وجود ندارد. وضعیت قبلی معامله حفظ شد.');
+            }
+
+            $result = $outcome['result'];
+            $message = ($outcome['finalized'] ? 'بک‌تست به پایان رسید' : 'بک‌تست به‌روزرسانی شد')
+                . "؛ {$outcome['candles']} کندل پردازش شد و {$outcome['synced']} کندل همگام‌سازی شد. "
+                . 'نتیجه فعلی: ' . number_format($result['result_percent'], 2) . '٪ | '
+                . 'تعداد معاملات بسته‌شده: ' . $result['total_trades'];
+
+            if (!$outcome['finalized'] && ($result['warmup_remaining'] ?? 0) > 0) {
+                $message .= ' | کندل باقی‌مانده برای Warm-up: ' . $result['warmup_remaining'];
+            }
+
+            return back()->with('success', $message);
+        } catch (Throwable $e) {
+            return back()->with('error', 'ادامه بک‌تست ناموفق بود: ' . $e->getMessage());
         }
-
-        $trade->update([
-            'status' => 'running',
-            'started_at' => $trade->started_at ?: now(),
-            'stopped_at' => null,
-        ]);
-
-        return back()->with('success', 'اجرای معامله شروع شد.');
     }
 
     public function stop(Trade $trade)
