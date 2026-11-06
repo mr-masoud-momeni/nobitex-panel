@@ -75,7 +75,8 @@ class TradeController extends Controller
             ->get();
 
         $now = Carbon::now('Asia/Tehran');
-        $defaultStart = $trade?->start_date?->copy()->setTimezone('Asia/Tehran') ?? $now->copy()->subMonth();
+        // Nobitex currently exposes roughly the latest five days for 15m candles.
+        $defaultStart = $trade?->start_date?->copy()->setTimezone('Asia/Tehran') ?? $now->copy()->subDays(5);
         $defaultEnd = $trade?->end_date?->copy()->setTimezone('Asia/Tehran');
 
         return view('Backend.trades.create', [
