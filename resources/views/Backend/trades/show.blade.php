@@ -23,7 +23,8 @@
                     <div class="col-md-4"><strong>نماد:</strong> {{ $trade->marketSymbol->display_name ?? $trade->symbol }}</div>
                     <div class="col-md-4"><strong>تایم‌فریم:</strong> {{ $trade->timeframe }}</div>
                     <div class="col-md-4"><strong>از تاریخ:</strong> {{ $startDateJalali ?? '—' }}</div>
-                    <div class="col-md-4"><strong>تا تاریخ:</strong> {{ $endDateJalali ?? '—' }}</div>
+                    <div class="col-md-4"><strong>تا تاریخ:</strong> {{ $endDateJalali ?? 'ادامه‌دار' }}</div>
+                    <div class="col-md-4"><strong>آخرین کندل پردازش‌شده:</strong> {{ $lastProcessedDateJalali ?? '—' }}</div>
                     <div class="col-md-4"><strong>سرمایه اولیه:</strong> {{ $trade->initial_capital }}</div>
                 </div>
                 <hr>
@@ -252,7 +253,20 @@
                         </form>
                     @endif
 
-                    @if($trade->status === 'draft')
+                    @if($trade->type === 'backtest' && ($trade->strategy->strategy_type ?? null) === 'generic' && $trade->status !== 'completed')
+                        <form action="{{ route('trade.start', $trade) }}" method="post" style="display:inline;">
+                            @csrf
+                            <button type="submit" class="btn btn-success">
+                                {{ $trade->last_processed_timestamp ? '↻ ادامه بک‌تست' : '▶ شروع بک‌تست' }}
+                            </button>
+                        </form>
+                        @if($trade->status === 'running')
+                            <form action="{{ route('trade.stop', $trade) }}" method="post" style="display:inline;">
+                                @csrf
+                                <button type="submit" class="btn btn-danger">■ توقف موقت</button>
+                            </form>
+                        @endif
+                    @elseif($trade->status === 'draft')
                         <form action="{{ route('trade.start', $trade) }}" method="post" style="display:inline;">
                             @csrf
                             <button type="submit" class="btn btn-success">▶ اجرا</button>
