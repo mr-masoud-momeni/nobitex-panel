@@ -309,6 +309,9 @@ class TradeController extends Controller
             'endDateJalali' => $trade->end_date
                 ? $this->formatJalaliDateTime($trade->end_date->copy()->setTimezone('Asia/Tehran'))
                 : null,
+            'lastProcessedDateJalali' => $trade->last_processed_timestamp
+                ? $this->formatJalaliDateTime(Carbon::createFromTimestamp($trade->last_processed_timestamp, 'UTC')->setTimezone('Asia/Tehran'))
+                : null,
         ]);
     }
 
