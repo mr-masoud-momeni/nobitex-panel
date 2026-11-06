@@ -15,7 +15,7 @@ use InvalidArgumentException;
 
 class BacktestEngine
 {
-    public function run(Strategy $strategy, Trade $trade, iterable $candles): array
+    public function run(Strategy $strategy, Trade $trade, iterable $candles, ?array $checkpoint = null, bool $finalize = false): array
     {
         if (($strategy->strategy_type ?? 'generic') === 'ma_trend') {
             return app(MovingAverageTrendEngine::class)->run($strategy, $trade, $candles);
@@ -45,32 +45,48 @@ class BacktestEngine
         }
 
         $indicators = $this->buildIndicators($rules);
-        $cash = (float) $trade->initial_capital;
-        $quantity = 0.0;
-        $positionDirection = null;
-        $entryPrice = null;
-        $entryValue = null;
-        $entryFee = 0.0;
-        $previousValues = [];
-        $valueHistory = [];
-        $totalTrades = 0;
-        $winningTrades = 0;
-        $losingTrades = 0;
+        $state = is_array($checkpoint) ? $checkpoint : [];
+        foreach ($indicators as $key => $indicator) {
+            if (isset($state['indicators'][$key]) && method_exists($indicator, 'importState')) {
+                $indicator->importState($state['indicators'][$key]);
+            }
+        }
+
+        $cash = (float) ($state['cash'] ?? $trade->initial_capital);
+        $quantity = (float) ($state['quantity'] ?? 0);
+        $positionDirection = $state['position_direction'] ?? null;
+        $entryPrice = isset($state['entry_price']) ? (float) $state['entry_price'] : null;
+        $entryValue = isset($state['entry_value']) ? (float) $state['entry_value'] : null;
+        $entryFee = (float) ($state['entry_fee'] ?? 0);
+        $previousValues = $state['previous_values'] ?? [];
+        $valueHistory = $state['value_history'] ?? [];
+        $totalTrades = (int) ($state['total_trades'] ?? 0);
+        $winningTrades = (int) ($state['winning_trades'] ?? 0);
+        $losingTrades = (int) ($state['losing_trades'] ?? 0);
         $executionLog = [];
-        $lastPrice = null;
-        $entryTimestamp = null;
-        $entryReason = null;
+        $lastPrice = isset($state['last_price']) ? (float) $state['last_price'] : null;
+        $entryTimestamp = isset($state['entry_timestamp']) ? (int) $state['entry_timestamp'] : null;
+        $entryReason = $state['entry_reason'] ?? null;
+        $lastProcessedTimestamp = isset($state['last_processed_timestamp'])
+            ? (int) $state['last_processed_timestamp']
+            : null;
+        $warmupRemaining = (int) ($state['warmup_remaining'] ?? $trade->warmup_candles);
         $config = is_array($strategy->config) ? $strategy->config : [];
         $initialTrendCheckEnabled = $direction === 'long'
             && (bool) ($config['initial_trend_check_enabled'] ?? false);
         $initialTrendCheckCandles = max(1, min(20, (int) ($config['initial_trend_check_candles'] ?? 3)));
-        $initialTrendBarsElapsed = 0;
-        $initialTrendConfirmed = false;
+        $initialTrendBarsElapsed = (int) ($state['initial_trend_bars_elapsed'] ?? 0);
+        $initialTrendConfirmed = (bool) ($state['initial_trend_confirmed'] ?? false);
         $startTimestamp = $trade->start_date instanceof \DateTimeInterface
             ? $trade->start_date->getTimestamp()
             : Carbon::parse($trade->start_date)->timestamp;
 
         foreach ($candles as $candle) {
+            $candleTimestamp = (int) $candle->timestamp;
+            if ($lastProcessedTimestamp !== null && $candleTimestamp <= $lastProcessedTimestamp) {
+                continue;
+            }
+
             $open = (float) $candle->open;
             $close = (float) $candle->close;
             $high = (float) $candle->high;
@@ -92,9 +108,23 @@ class BacktestEngine
                     : $indicator->update($close);
             }
 
-            if ((int) $candle->timestamp < $startTimestamp) {
+            if ($candleTimestamp < $startTimestamp) {
+                $warmupRemaining = max(0, $warmupRemaining - 1);
                 $this->appendHistory($valueHistory, $values);
                 $previousValues = $values;
+                $lastPrice = $close;
+                $lastProcessedTimestamp = $candleTimestamp;
+                continue;
+            }
+
+            // If the selected start date has insufficient historical candles,
+            // keep collecting closed candles until the requested warm-up is complete.
+            if ($warmupRemaining > 0) {
+                $warmupRemaining--;
+                $this->appendHistory($valueHistory, $values);
+                $previousValues = $values;
+                $lastPrice = $close;
+                $lastProcessedTimestamp = $candleTimestamp;
                 continue;
             }
 
@@ -141,7 +171,7 @@ class BacktestEngine
                         'entry_time' => $this->formatTimestamp($entryTimestamp),
                         'entry_price' => $entryPrice,
                         'entry_value' => $entryValue,
-                        'exit_time' => $this->formatTimestamp((int) $candle->timestamp),
+                        'exit_time' => $this->formatTimestamp($candleTimestamp),
                         'exit_price' => $exitPrice,
                         'profit' => $profit,
                         'profit_percent' => $entryValue > 0 ? ($profit / $entryValue) * 100 : 0,
@@ -213,7 +243,7 @@ class BacktestEngine
             $lastPrice = $close;
         }
 
-        if ($quantity > 0 && $lastPrice !== null && $positionDirection !== null) {
+        if ($finalize && $quantity > 0 && $lastPrice !== null && $positionDirection !== null) {
             [$cash, $profit] = $this->closePosition(
                 $cash, $quantity, $entryPrice, $lastPrice,
                 (float) ($trade->fee_percent ?? 0), $entryValue, $entryFee, $positionDirection
@@ -227,18 +257,61 @@ class BacktestEngine
                 'entry_time' => $this->formatTimestamp($entryTimestamp),
                 'entry_price' => $entryPrice,
                 'entry_value' => $entryValue,
-                'exit_time' => $this->formatTimestamp((int) $trade->end_date->timestamp),
+                'exit_time' => $this->formatTimestamp($lastProcessedTimestamp),
                 'exit_price' => $lastPrice,
                 'profit' => $profit,
                 'profit_percent' => $entryValue > 0 ? ($profit / $entryValue) * 100 : 0,
                 'exit_reason' => 'end_of_test',
                 'cash_after' => $cash,
             ];
+            $quantity = 0.0;
+            $positionDirection = null;
+            $entryPrice = null;
+            $entryValue = null;
+            $entryFee = 0.0;
+            $entryTimestamp = null;
+            $entryReason = null;
         }
 
-        $resultAmount = $cash - (float) $trade->initial_capital;
+        $equity = $cash;
+        if ($quantity > 0 && $lastPrice !== null && $positionDirection !== null) {
+            $equity += $positionDirection === 'long'
+                ? ($quantity * $lastPrice)
+                : ($quantity * ($entryPrice - $lastPrice));
+        }
+
+        $resultAmount = $equity - (float) $trade->initial_capital;
         $resultPercent = (float) $trade->initial_capital > 0
             ? ($resultAmount / (float) $trade->initial_capital) * 100 : 0;
+
+        $indicatorStates = [];
+        foreach ($indicators as $key => $indicator) {
+            if (method_exists($indicator, 'exportState')) {
+                $indicatorStates[$key] = $indicator->exportState();
+            }
+        }
+
+        $engineState = [
+            'cash' => $cash,
+            'quantity' => $quantity,
+            'position_direction' => $positionDirection,
+            'entry_price' => $entryPrice,
+            'entry_value' => $entryValue,
+            'entry_fee' => $entryFee,
+            'entry_timestamp' => $entryTimestamp,
+            'entry_reason' => $entryReason,
+            'previous_values' => $previousValues,
+            'value_history' => $valueHistory,
+            'total_trades' => $totalTrades,
+            'winning_trades' => $winningTrades,
+            'losing_trades' => $losingTrades,
+            'last_price' => $lastPrice,
+            'last_processed_timestamp' => $lastProcessedTimestamp,
+            'warmup_remaining' => $warmupRemaining,
+            'initial_trend_bars_elapsed' => $initialTrendBarsElapsed,
+            'initial_trend_confirmed' => $initialTrendConfirmed,
+            'indicators' => $indicatorStates,
+        ];
 
         return [
             'result_amount' => $resultAmount,
@@ -247,7 +320,11 @@ class BacktestEngine
             'winning_trades' => $winningTrades,
             'losing_trades' => $losingTrades,
             'final_capital' => $cash,
+            'equity' => $equity,
             'execution_log' => $executionLog,
+            'engine_state' => $engineState,
+            'last_processed_timestamp' => $lastProcessedTimestamp,
+            'warmup_remaining' => $warmupRemaining,
         ];
     }
 
@@ -616,6 +693,9 @@ class BacktestEngine
             if ($value === null) continue;
             $history[$key] = $history[$key] ?? [];
             $history[$key][] = (float) $value;
+            if (count($history[$key]) > 501) {
+                array_shift($history[$key]);
+            }
         }
     }
 }
