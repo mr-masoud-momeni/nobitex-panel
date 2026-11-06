@@ -76,16 +76,16 @@ class TradeController extends Controller
 
         $now = Carbon::now('Asia/Tehran');
         $defaultStart = $trade?->start_date?->copy()->setTimezone('Asia/Tehran') ?? $now->copy()->subMonth();
-        $defaultEnd = $trade?->end_date?->copy()->setTimezone('Asia/Tehran') ?? $now;
+        $defaultEnd = $trade?->end_date?->copy()->setTimezone('Asia/Tehran');
 
         return view('Backend.trades.create', [
             'strategies' => $strategies,
             'markets' => $markets,
             'trade' => $trade,
             'default_start_date_unix' => $defaultStart->timestamp * 1000,
-            'default_end_date_unix' => $defaultEnd->timestamp * 1000,
+            'default_end_date_unix' => $defaultEnd ? $defaultEnd->timestamp * 1000 : '',
             'default_start_date_jalali' => $this->formatJalaliDateTime($defaultStart),
-            'default_end_date_jalali' => $this->formatJalaliDateTime($defaultEnd),
+            'default_end_date_jalali' => $defaultEnd ? $this->formatJalaliDateTime($defaultEnd) : '',
         ]);
     }
 
@@ -193,7 +193,7 @@ class TradeController extends Controller
             'initial_capital' => ['required', 'numeric', 'gt:0'],
             'fee_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'warmup_candles' => ['required', 'integer', 'min:1', 'max:100000'],
-            'start_date' => ['nullable', 'integer', 'min:1'],
+            'start_date' => ['required_if:type,backtest', 'nullable', 'integer', 'min:1'],
             'end_date' => ['nullable', 'integer', 'min:1'],
         ]);
 
