@@ -163,6 +163,47 @@ class Adx
         $this->minusDi = null;
     }
 
+    public function exportState(): array
+    {
+        return [
+            'period' => $this->period,
+            'previous_high' => $this->previousHigh,
+            'previous_low' => $this->previousLow,
+            'previous_close' => $this->previousClose,
+            'initial_true_ranges' => $this->initialTrueRanges,
+            'initial_plus_dm' => $this->initialPlusDm,
+            'initial_minus_dm' => $this->initialMinusDm,
+            'smoothed_true_range' => $this->smoothedTrueRange,
+            'smoothed_plus_dm' => $this->smoothedPlusDm,
+            'smoothed_minus_dm' => $this->smoothedMinusDm,
+            'initial_dx' => $this->initialDx,
+            'adx' => $this->adx,
+            'plus_di' => $this->plusDi,
+            'minus_di' => $this->minusDi,
+        ];
+    }
+
+    public function importState(array $state): void
+    {
+        if ((int) ($state['period'] ?? 0) !== $this->period) {
+            throw new InvalidArgumentException('ADX checkpoint period does not match.');
+        }
+
+        $this->previousHigh = isset($state['previous_high']) ? (float) $state['previous_high'] : null;
+        $this->previousLow = isset($state['previous_low']) ? (float) $state['previous_low'] : null;
+        $this->previousClose = isset($state['previous_close']) ? (float) $state['previous_close'] : null;
+        $this->initialTrueRanges = $state['initial_true_ranges'] ?? [];
+        $this->initialPlusDm = $state['initial_plus_dm'] ?? [];
+        $this->initialMinusDm = $state['initial_minus_dm'] ?? [];
+        $this->smoothedTrueRange = isset($state['smoothed_true_range']) ? (float) $state['smoothed_true_range'] : null;
+        $this->smoothedPlusDm = isset($state['smoothed_plus_dm']) ? (float) $state['smoothed_plus_dm'] : null;
+        $this->smoothedMinusDm = isset($state['smoothed_minus_dm']) ? (float) $state['smoothed_minus_dm'] : null;
+        $this->initialDx = $state['initial_dx'] ?? [];
+        $this->adx = isset($state['adx']) ? (float) $state['adx'] : null;
+        $this->plusDi = isset($state['plus_di']) ? (float) $state['plus_di'] : null;
+        $this->minusDi = isset($state['minus_di']) ? (float) $state['minus_di'] : null;
+    }
+
     private function values(): array
     {
         return [
