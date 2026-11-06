@@ -47,6 +47,25 @@ class Sma implements Indicator
         $this->value = null;
     }
 
+    public function exportState(): array
+    {
+        return [
+            'period' => $this->period,
+            'values' => $this->values,
+            'value' => $this->value,
+        ];
+    }
+
+    public function importState(array $state): void
+    {
+        if ((int) ($state['period'] ?? 0) !== $this->period) {
+            throw new InvalidArgumentException('SMA checkpoint period does not match.');
+        }
+
+        $this->values = array_map('floatval', $state['values'] ?? []);
+        $this->value = isset($state['value']) ? (float) $state['value'] : null;
+    }
+
     public function period(): int
     {
         return $this->period;
