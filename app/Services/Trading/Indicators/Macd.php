@@ -70,6 +70,28 @@ class Macd
         $this->histogram = null;
     }
 
+    public function exportState(): array
+    {
+        return [
+            'fast' => $this->fastEma->exportState(),
+            'slow' => $this->slowEma->exportState(),
+            'signal' => $this->signalEma->exportState(),
+            'macd' => $this->macd,
+            'signal_value' => $this->signal,
+            'histogram' => $this->histogram,
+        ];
+    }
+
+    public function importState(array $state): void
+    {
+        $this->fastEma->importState($state['fast'] ?? []);
+        $this->slowEma->importState($state['slow'] ?? []);
+        $this->signalEma->importState($state['signal'] ?? []);
+        $this->macd = isset($state['macd']) ? (float) $state['macd'] : null;
+        $this->signal = isset($state['signal_value']) ? (float) $state['signal_value'] : null;
+        $this->histogram = isset($state['histogram']) ? (float) $state['histogram'] : null;
+    }
+
     public function fastPeriod(): int
     {
         return $this->fastEma->period();
