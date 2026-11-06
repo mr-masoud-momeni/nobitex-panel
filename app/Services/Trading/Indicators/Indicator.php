@@ -9,4 +9,8 @@ interface Indicator
     public function isReady(): bool;
 
     public function reset(): void;
+
+    public function exportState(): array;
+
+    public function importState(array $state): void;
 }
