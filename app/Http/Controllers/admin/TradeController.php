@@ -149,6 +149,8 @@ class TradeController extends Controller
             ]);
 
             $copy->status = 'draft';
+            // A duplicated trade starts as an open-ended backtest unless an end date is chosen.
+            $copy->end_date = null;
             $copy->result_amount = null;
             $copy->result_percent = null;
             $copy->total_trades = null;
@@ -172,6 +174,11 @@ class TradeController extends Controller
 
     private function validatedData(Request $request, ?Trade $trade = null)
     {
+        // Treat an omitted/zero end date as an open-ended backtest.
+        if (!$request->filled('end_date') || (string) $request->input('end_date') === '0') {
+            $request->merge(['end_date' => null]);
+        }
+
         $data = $request->validate([
             'strategy_id' => ['required', Rule::exists('strategies', 'id')->where('strategy_type', 'generic')],
             'market_id' => ['required', 'exists:markets,id'],
