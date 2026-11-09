@@ -1,0 +1,17 @@
+Third-party assets vendored locally for the trade date fields
+
+1) persian-date
+   Version: 1.1.0
+   Source: https://github.com/babakhani/PersianDate
+   File: public/vendor/persian-datepicker/persian-date.min.js
+   License: MIT (as stated in the distributed file header)
+
+2) persian-datepicker
+   Version: 1.2.0
+   Source: https://github.com/babakhani/pwt.datepicker
+   Files:
+     - public/vendor/persian-datepicker/persian-datepicker.min.js
+     - public/vendor/persian-datepicker/persian-datepicker.min.css
+   License: MIT (as stated in the distributed file headers)
+
+The original copyright/license notices are retained in the minified assets.
