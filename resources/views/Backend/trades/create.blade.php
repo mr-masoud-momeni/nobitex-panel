@@ -138,12 +138,12 @@
 @endsection
 
 @section('HeaderLinks')
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/persian-datepicker@1.2.0/dist/css/persian-datepicker.min.css">
+<link rel="stylesheet" href="{{ asset('vendor/persian-datepicker/persian-datepicker.min.css') }}">
 @endsection
 
 @section('scripts')
-<script src="https://cdn.jsdelivr.net/npm/persian-date@1.1.0/dist/persian-date.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/persian-datepicker@1.2.0/dist/js/persian-datepicker.min.js"></script>
+<script src="{{ asset('vendor/persian-datepicker/persian-date.min.js') }}"></script>
+<script src="{{ asset('vendor/persian-datepicker/persian-datepicker.min.js') }}"></script>
 
 <script>
 (function () {
