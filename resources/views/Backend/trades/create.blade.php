@@ -115,7 +115,7 @@
                                 </div>
                                 <div class="col-md-4 form-group">
                                     <label>تا تاریخ (اختیاری؛ خالی یعنی بک‌تست ادامه‌دار)</label>
-                                    <input type="text" id="trade-end-date-display" class="form-control" autocomplete="off" value="{{ old('end_date_display', $default_end_date_jalali) }}" placeholder="بدون تاریخ پایان">
+                                    <input type="text" name="end_date_display" id="trade-end-date-display" class="form-control" autocomplete="off" value="{{ old('end_date_display', $default_end_date_jalali) }}" placeholder="بدون تاریخ پایان">
                                     <input type="hidden" name="end_date" id="trade-end-date" value="{{ old('end_date', $default_end_date_unix) }}">
                                 </div>
                                 <div class="col-md-4 form-group">
