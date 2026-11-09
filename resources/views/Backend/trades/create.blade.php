@@ -172,7 +172,14 @@
 
     document.querySelector('form').addEventListener('submit', function (event) {
         var start = document.getElementById('trade-start-date').value;
-        var end = document.getElementById('trade-end-date').value;
+        var endDisplay = document.getElementById('trade-end-date-display').value.trim();
+        var endInput = document.getElementById('trade-end-date');
+
+        // Clearing the optional visible field must also clear its hidden timestamp.
+        if (!endDisplay) {
+            endInput.value = '';
+        }
+        var end = endInput.value;
 
         if (!start || start === '0') {
             alert('لطفاً تاریخ شروع را از تقویم انتخاب کنید.');
