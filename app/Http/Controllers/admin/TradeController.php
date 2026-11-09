@@ -174,8 +174,10 @@ class TradeController extends Controller
 
     private function validatedData(Request $request, ?Trade $trade = null)
     {
-        // Treat an omitted/zero end date as an open-ended backtest.
-        if (!$request->filled('end_date') || (string) $request->input('end_date') === '0') {
+        // The visible optional field is authoritative: if it is blank, ignore
+        // any stale timestamp left in the hidden datepicker input/session.
+        $endDateDisplay = trim((string) $request->input('end_date_display', ''));
+        if ($endDateDisplay === '' || !$request->filled('end_date') || (string) $request->input('end_date') === '0') {
             $request->merge(['end_date' => null]);
         }
 
